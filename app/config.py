@@ -23,9 +23,9 @@ class AppConfig:
     q_pump_k: float = 5.0
     q_pump_water: float = 5.0
 
-    # Bio-liquid nutrient concentrations (mg/ml) - baseline placeholders until measured
+    # Bio-liquid nutrient concentrations (mg/ml) - equal placeholder (2.0) until Teammate #4 measures real values
     c_bio_n: float = 2.0
-    c_bio_p2o5: float = 1.0
+    c_bio_p2o5: float = 2.0
     c_bio_k2o: float = 2.0
 
     # Tabletop drone flight boundaries (cm) - 60x80 cm tray minus 10 cm safety margin per side
