@@ -44,12 +44,14 @@ class TestCalculations(unittest.TestCase):
             },
         }
         waypoints = project_latlng_to_waypoints(
-            square_geojson, table_w_cm=100.0, table_h_cm=80.0, min_move_cm=20.0
+            square_geojson, table_w_cm=40.0, table_h_cm=60.0, min_move_cm=20.0
         )
         self.assertEqual(len(waypoints), 4)
+        # First segment moves East (+X) from +Y North -> heading 90 deg clockwise
+        self.assertAlmostEqual(waypoints[0]["angle_deg"], 90.0, delta=0.5)
         for wp in waypoints:
-            self.assertLessEqual(abs(wp["dx"]), 100.01)
-            self.assertLessEqual(abs(wp["dy"]), 80.01)
+            self.assertLessEqual(abs(wp["dx"]), 40.01)
+            self.assertLessEqual(abs(wp["dy"]), 60.01)
             self.assertGreaterEqual(wp["distance_cm"], 20.0)
 
     def test_analyze_green_coverage_half_green_image(self) -> None:

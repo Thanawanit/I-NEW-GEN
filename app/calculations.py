@@ -35,11 +35,11 @@ def _extract_ring_coords(polygon_geojson: Any) -> list[tuple[float, float]]:
 
 def project_latlng_to_waypoints(
     polygon_geojson: Any,
-    table_w_cm: float = 100.0,
-    table_h_cm: float = 80.0,
+    table_w_cm: float = 40.0,
+    table_h_cm: float = 60.0,
     min_move_cm: float = 20.0,
 ) -> list[dict[str, float]]:
-    """Project Lat/Lng polygon into scaled tabletop drone waypoints (cm, deg)."""
+    """Project Lat/Lng polygon into scaled tabletop drone waypoints (heading clockwise from +Y North)."""
     points = _extract_ring_coords(polygon_geojson)
     if len(points) < 2:
         return []
@@ -67,6 +67,7 @@ def project_latlng_to_waypoints(
 
     waypoints: list[dict[str, float]] = []
     acc_x, acc_y = meters_xy[0]
+    prev_heading = 0.0  # Drone starts facing +Y (North)
 
     for idx in range(1, len(meters_xy)):
         cur_x, cur_y = meters_xy[idx]
@@ -80,15 +81,19 @@ def project_latlng_to_waypoints(
         if dist_cm < 1e-3:
             continue
 
-        angle_deg = math.degrees(math.atan2(dy_cm, dx_cm))
+        # Navigation azimuth clockwise from +Y (North): dx=80, dy=0 -> 90 deg
+        heading_deg = math.degrees(math.atan2(dx_cm, dy_cm))
+        turn_deg = ((heading_deg - prev_heading + 180.0) % 360.0) - 180.0
         waypoints.append(
             {
                 "dx": round(dx_cm, 2),
                 "dy": round(dy_cm, 2),
                 "distance_cm": round(dist_cm, 2),
-                "angle_deg": round(angle_deg, 2),
+                "angle_deg": round(heading_deg, 2),
+                "turn_deg": round(turn_deg, 2),
             }
         )
+        prev_heading = heading_deg
         acc_x, acc_y = cur_x, cur_y
 
     return waypoints

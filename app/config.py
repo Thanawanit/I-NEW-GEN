@@ -28,9 +28,9 @@ class AppConfig:
     c_bio_p2o5: float = 1.0
     c_bio_k2o: float = 2.0
 
-    # Tabletop drone flight boundaries (cm) - updated by Teammate #3
-    table_width_cm: float = 100.0
-    table_height_cm: float = 80.0
+    # Tabletop drone flight boundaries (cm) - 60x80 cm tray minus 10 cm safety margin per side
+    table_width_cm: float = 40.0
+    table_height_cm: float = 60.0
     min_move_cm: float = 20.0
 
     # Mixing batch & safety thresholds

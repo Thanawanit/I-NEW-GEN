@@ -230,21 +230,26 @@ def create_app(
         mode = _normalize_mode(data.get("mode"), data.get("simulated"))
         source = "simulated" if mode == "sim" else "esp32_live"
 
+        # Fermenter microbes stay healthy when temps are within 20-45 C
         numeric_temps = [float(t) for t in temps if t is not None]
         is_ready = bool(numeric_temps) and all(
-            cfg.fermenter_temp_min_c <= t <= 45.0 for t in numeric_temps
+            20.0 <= t <= 45.0 for t in numeric_temps
         )
 
         with get_connection(db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO fermenter_logs (temp_n_c, temp_p_c, temp_k_c, mixer_tds_ppm, is_ready, source, mode)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO fermenter_logs (
+                    temp_n_c, temp_p_c, temp_k_c, temp_mixer_c,
+                    mixer_tds_ppm, is_ready, source, mode
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     data.get("temp_n"),
                     data.get("temp_p"),
                     data.get("temp_k"),
+                    data.get("temp_mixer"),
                     data.get("mixer_tds_ppm"),
                     1 if is_ready else 0,
                     source,
@@ -493,6 +498,13 @@ def create_app(
                 water_ec_ppm=cfg.water_tds_ppm,
             )
 
+            # Tank overflow guard (500 ml mixing tank limit)
+            if result["needs_dilution"] and (current_vol + result["add_water_ml"] > 500.0):
+                result["tank_overflow_warning"] = (
+                    f"ปริมาตรรวม ({current_vol + result['add_water_ml']:.0f} ml) เกินความจุถังผสม 500 ml "
+                    "กรุณาแบ่งน้ำปุ๋ยออกครึ่งหนึ่งก่อนเติมน้ำเจือจาง"
+                )
+
             new_status = "diluting" if result["needs_dilution"] else "ready"
             if job:
                 if result["needs_dilution"]:
@@ -524,6 +536,7 @@ def create_app(
         mode = str(data.get("mode") or "survey_photo")
         execution_mode = str(data.get("execution_mode") or "SIMULATED").upper()
         waypoints = data.get("waypoints_cm") or []
+        job_id = data.get("job_id")
 
         if execution_mode == "LIVE":
             return (
@@ -537,6 +550,11 @@ def create_app(
                 ),
                 501,
             )
+
+        if mode == "spray_fertilizer" and job_id:
+            with get_connection(db_path) as conn:
+                conn.execute("UPDATE mixing_jobs SET status = 'sprayed' WHERE id = ?", (int(job_id),))
+                conn.commit()
 
         return jsonify(
             {
