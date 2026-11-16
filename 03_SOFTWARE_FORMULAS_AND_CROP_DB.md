@@ -44,6 +44,7 @@ CREATE TABLE plots (
     soil_type TEXT NOT NULL,          -- เช่น 'sandy_loam', 'clay_loam'
     bulk_density_g_cm3 REAL NOT NULL, -- ความหนาแน่นมวลดิน (g/cm^3)
     crop_profile_id INTEGER NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'live',-- 'live' หรือ 'sim' (แยกฐานข้อมูล 100%)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (crop_profile_id) REFERENCES crop_profiles(id)
 );
@@ -130,7 +131,7 @@ CREATE TABLE mixing_jobs (
 2. หา Bounding Box ของแปลงบนแผนที่จริง: ความกว้าง $W_{\text{real}} = x_{\max} - x_{\min}$ (m) และความยาว $H_{\text{real}} = y_{\max} - y_{\min}$ (m)
 3. หาตัวคูณย่อสเกล $k$ (หน่วย $\text{cm/m}$):
    $$k = \min\left(\frac{W_{\text{table}}}{W_{\text{real}}},\ \frac{H_{\text{table}}}{H_{\text{real}}}\right)$$
-4. แปลงจุดมุมแปลงแต่ละจุดเป็นคำสั่งเคลื่อนที่ของโดรน:
+4. แปลงจุดมุมแปลงแต่ละจุดเป็นคำสั่งเคลื่อนที่ของโดรน (กำหนดจุดเริ่มต้นที่มุมแปลงแรก และหันหัวโดรนไปทางทิศเหนือ `+Y` ของโต๊ะ):
    $$\Delta X_i\text{ (cm)} = k \cdot (x_i - x_{i-1}), \qquad \Delta Y_i\text{ (cm)} = k \cdot (y_i - y_{i-1})$$
    $$\text{ระยะบินตรง } d_i = \sqrt{\Delta X_i^2 + \Delta Y_i^2}\text{ (cm)}, \qquad \text{มุมหัน } \theta_i = \text{atan2}(\Delta Y_i, \Delta X_i)$$
    *(ข้อจำกัดของโดรน SDK ทั่วไป: ระยะสั่งเคลื่อนที่ต่อคำสั่งต้องไม่ต่ำกว่าค่าขั้นต่ำของโดรน เช่น 20 cm)*
@@ -148,17 +149,17 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
    $$M_{\text{soil\_elem}, i}\ (\text{g/m}^2) = C_{\text{measured}, i}\ (\text{mg/kg}) \times \big(\rho_{\text{soil}} \times d_{\text{root}}\big)$$
    *(หมายเหตุ: $\text{mg/kg} \times 1000\ \text{kg/m}^2 \times 10^{-3}\ \text{g/mg} = \text{mg/kg} \times 1$ พอดี)*
 
-2. **แปลงรูปธาตุบริสุทธิ์เป็นรูปปุ๋ยออกไซด์** เพื่อให้ตรงกับหน่วยของตารางเป้าหมาย:
-   $$M_{\text{soil, N}} = M_{\text{soil\_elem, N}}, \qquad M_{\text{soil, P}_2\text{O}_5} = 2.29 \times M_{\text{soil\_elem, P}}, \qquad M_{\text{soil, K}_2\text{O}} = 1.20 \times M_{\text{soil\_elem, K}}$$
+2. **แปลงรูปธาตุบริสุทธิ์เป็นรูปปุ๋ยออกไซด์และคูณสัมประสิทธิ์การดูดใช้ได้ต่อฤดู** ($f_N = 0.30,\ f_P = 0.20,\ f_K = 0.15$ เพื่อสะท้อนสัดส่วนที่พืชดูดใช้ได้จริงจากดินใน 1 ระยะ):
+   $$M_{\text{soil, N}} = M_{\text{soil\_elem, N}} \times 0.30, \qquad M_{\text{soil, P}_2\text{O}_5} = 2.29 \times M_{\text{soil\_elem, P}} \times 0.20, \qquad M_{\text{soil, K}_2\text{O}} = 1.20 \times M_{\text{soil\_elem, K}} \times 0.15$$
 
-   > **ตัวอย่างคำนวณ:** ดินร่วน $\rho = 1.35\ \text{g/cm}^3$, ข้าวโพดระยะเติบโต $d_{\text{root}} = 0.25\ \text{m}$, วัดค่า N ในดินได้ $12\ \text{mg/kg}$ และ P ได้ $3\ \text{mg/kg}$:
-   > $$M_{\text{soil, N}} = 12 \times 1.35 \times 0.25 = 4.05\ \text{g/m}^2$$
-   > $$M_{\text{soil, P}_2\text{O}_5} = 2.29 \times (3 \times 1.35 \times 0.25) = 2.32\ \text{g/m}^2$$
+   > **ตัวอย่างคำนวณ:** ดินร่วน $\rho = 1.35\ \text{g/cm}^3$, ข้าวโพดระยะเติบโต $d_{\text{root}} = 0.25\ \text{m}$, วัดค่า N ได้ $12\ \text{mg/kg}$ และ P ระดับต่ำ $5\ \text{mg/kg}$:
+   > $$M_{\text{soil, N}} = 12 \times 1.35 \times 0.25 \times 0.30 = 1.215\ \text{g/m}^2$$
+   > $$M_{\text{soil, P}_2\text{O}_5} = 2.29 \times (5 \times 1.35 \times 0.25) \times 0.20 = 0.773\ \text{g/m}^2$$
 
 3. **คำนวณปริมาณธาตุที่ขาดทั้งแปลง** ($\Delta M_i$ หน่วย กรัม):
-   $$\Delta M_i\ (\text{g}) = \max\Big(0,\ M_{\text{target}, i} - M_{\text{soil}, i}\Big) \times A_{\text{real}}\ (\text{m}^2)$$
-   > **ต่อจากตัวอย่าง:** เป้าหมายข้าวโพดระยะเติบโต $M_{\text{target, N}} = 6.00\ \text{g/m}^2$, พื้นที่จริง $A_{\text{real}} = 100\ \text{m}^2$:
-   > $$\Delta M_{\text{N}} = (6.00 - 4.05) \times 100 = 195\ \text{g}$$
+   $$\Delta M_i\ (\text{g}) = \max(0,\ M_{\text{target}, i} - M_{\text{soil}, i}) \times A_{\text{real}}\ (\text{m}^2)$$
+   > **ต่อจากตัวอย่าง:** เป้าหมายข้าวโพดระยะเติบโต $M_{\text{target, N}} = 6.00\ \text{g/m}^2$, $M_{\text{target, P}_2\text{O}_5} = 1.50\ \text{g/m}^2$, พื้นที่จริง $A_{\text{real}} = 100\ \text{m}^2$:
+   > $$\Delta M_{\text{N}} = (6.00 - 1.215) \times 100 = 478.5\ \text{g}, \qquad \Delta M_{\text{P}_2\text{O}_5} = (1.50 - 0.773) \times 100 = 72.7\ \text{g}$$
    *(กรณีใช้ LDD Soil Test Kit ที่ให้ผลเป็นระดับ `ต่ำ / ปานกลาง / สูง` ให้ตั้งค่าตัวแทน $C_{\text{measured}}$ ของแต่ละระดับไว้ใน Config เพื่อเข้าสูตรเดียวกันได้ทันที)*
 
 4. **เงื่อนไขตรวจสอบ pH (Safety & Absorption Warning):**
@@ -185,7 +186,7 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
    - ถ้า `mixer_tds_ppm` $\le$ `safe_ec_max_ppm` $\rightarrow$ สถานะ = `'ready'` (อนุญาตให้ตักขึ้นโดรนได้ และล้างหัววัดด้วยน้ำสะอาด)
    - ถ้า `mixer_tds_ppm` $>$ `safe_ec_max_ppm` $\rightarrow$ คำนวณปริมาตรน้ำเปล่าเติมเพิ่มเพื่อลดความเข้มข้นตามสมการเจือจาง $C_1 V_1 = C_2 V_2$:
      $$V_{\text{add\_water}} = V_{\text{current}} \times \left(\frac{\text{EC}_{\text{current}}}{\text{EC}_{\text{safe}}} - 1\right)$$
-     สั่งเปิดปั๊มน้ำเปล่า (ตัวที่ 4) เพิ่มเป็นเวลา $t_{\text{add}} = V_{\text{add\_water}} / Q_{\text{pump, water}}$ แล้วอ่านค่า EC ซ้ำ
+     สั่งเปิดปั๊มน้ำเปล่า (ตัวที่ 4) เพิ่มเป็นเวลา $t_{\text{add}} = V_{\text{add\_water}} / Q_{\text{pump, water}}$ (โดยระบบจะรีเซ็ตเวลาปั๊ม N, P, K เป็น `0` เพื่อให้ ESP32 #2 ดึงคำสั่งผ่าน `GET /api/mixer/command` ไปเติมเฉพาะน้ำเปล่า) แล้วกวนและอ่านค่า EC ซ้ำ
 
 ---
 

@@ -41,6 +41,11 @@ class AppConfig:
     fermenter_temp_min_c: float = 25.0
     fermenter_temp_max_c: float = 40.0
 
+    # Seasonal soil nutrient availability factors (fraction of soil reserve available in 1 stage)
+    n_avail_factor: float = 0.30
+    p_avail_factor: float = 0.20
+    k_avail_factor: float = 0.15
+
     # Reference soil bulk densities (g/cm^3)
     bulk_density_map: dict[str, float] = field(
         default_factory=lambda: {

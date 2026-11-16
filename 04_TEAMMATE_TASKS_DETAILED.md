@@ -52,7 +52,7 @@
    - ฝั่งสัญญาณ (ESP32 $\rightarrow$ Relay):
      - `VCC` ของ Relay $\rightarrow$ ขา `VIN` (5V) ของ ESP32 #2 (หรือไฟ 5V จากแหล่งจ่าย)
      - `GND` ของ Relay $\rightarrow$ ขา `GND` ของ ESP32 #2
-     - `IN1, IN2, IN3, IN4` $\rightarrow$ **`GPIO 25, 26, 27, 14`** (ตามลำดับปั๊ม N, P, K, น้ำเปล่า)
+     - `IN1, IN2, IN3, IN4` $\rightarrow$ **`GPIO 25, 26, 27, 33`** (ตามลำดับปั๊ม N, P, K, น้ำเปล่า — หลีกเลี่ยง GPIO 14 เพื่อไม่ให้รีเลย์กระตุกตอนบูต)
    - ฝั่งกำลัง (Power Supply $\rightarrow$ Relay $\rightarrow$ ปั๊ม):
      - สายบวก (`+`) จาก Power Supply แยก $\rightarrow$ แยกเข้าขา **`COM`** ของรีเลย์ทั้ง 4 ช่อง
      - ขา **`NO`** (Normally Open) ของรีเลย์แต่ละช่อง $\rightarrow$ สายบวก (`+`) ของปั๊มตัวที่ 1–4

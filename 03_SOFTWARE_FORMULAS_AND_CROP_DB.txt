@@ -43,6 +43,7 @@ CREATE TABLE plots (
     soil_type TEXT NOT NULL,          -- เช่น 'sandy_loam', 'clay_loam'
     bulk_density_g_cm3 REAL NOT NULL, -- ความหนาแน่นมวลดิน (g/cm^3)
     crop_profile_id INTEGER NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'live',-- 'live' หรือ 'sim' (แยกฐานข้อมูล 100%)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (crop_profile_id) REFERENCES crop_profiles(id)
 );
@@ -110,7 +111,7 @@ CREATE TABLE mixing_jobs (
 | กาแฟอราบิก้า | คาทิมอร์ (Catimor) | 2. ระยะแตกทรงพุ่ม/บำรุงใบ (แนว `15-3-6`) | 0.30 m | 8.00 | 0.60 | 4.00 | 5.0–6.2 | ≤ 1,000 |
 | กาแฟอราบิก้า | คาทิมอร์ (Catimor) | 3. ระยะติดผล–บำรุงเมล็ด (แนว `3-6-15`) | 0.35 m | 4.50 | 0.80 | 11.00 | 5.0–6.2 | ≤ 1,100 |
 
-*(ค่าความหนาแน่นดินอ้างอิงเบื้องต้น \rho_{soil}: ดินร่วนทราย ~ 1.45\ g/cm^3, ดินร่วน ~ 1.35\ g/cm^3, ดินร่วนเหนียว ~ 1.25\ g/cm^3)*
+*(ค่าความหนาแน่นดินอ้างอิงเบื้องต้น rho_{soil}: ดินร่วนทราย ~ 1.45\ g/cm^3, ดินร่วน ~ 1.35\ g/cm^3, ดินร่วนเหนียว ~ 1.25\ g/cm^3)*
 
 ---
 
@@ -125,12 +126,12 @@ CREATE TABLE mixing_jobs (
 
 1. แปลงพิกัด Lat/Lng (องศา) เป็นพิกัดเมตร (x_i, y_i) เทียบกับจุดมุมแรก (lat_0, lng_0) ด้วย Equirectangular Projection (R_{earth} = 6{,}371{,}000 m, แปลงองศาเป็นเรเดียนก่อนคูณ):
    x_i (m) = R_{earth} * (lng_i - lng_0) * \cos(lat_0), \qquad y_i (m) = R_{earth} * (lat_i - lat_0)
-2. หา Bounding Box ของแปลงบนแผนที่จริง: ความกว้าง W_{real} = x_{\max} - x_{\min} (m) และความยาว H_{real} = y_{\max} - y_{\min} (m)
+2. หา Bounding Box ของแปลงบนแผนที่จริง: ความกว้าง W_{real} = x_{max} - x_{min} (m) และความยาว H_{real} = y_{max} - y_{min} (m)
 3. หาตัวคูณย่อสเกล k (หน่วย cm/m):
-   k = \min<=ft(\frac{W_{table}}{W_{real}},\ \frac{H_{table}}{H_{real}}\right)
-4. แปลงจุดมุมแปลงแต่ละจุดเป็นคำสั่งเคลื่อนที่ของโดรน:
-   \Delta X_i (cm) = k * (x_i - x_{i-1}), \qquad \Delta Y_i (cm) = k * (y_i - y_{i-1})
-   ระยะบินตรง  d_i = \sqrt{\Delta X_i^2 + \Delta Y_i^2} (cm), \qquad มุมหัน  \theta_i = atan2(\Delta Y_i, \Delta X_i)
+   k = min(\frac{W_{table}}{W_{real}},\ \frac{H_{table}}{H_{real}})
+4. แปลงจุดมุมแปลงแต่ละจุดเป็นคำสั่งเคลื่อนที่ของโดรน (กำหนดจุดเริ่มต้นที่มุมแปลงแรก และหันหัวโดรนไปทางทิศเหนือ `+Y` ของโต๊ะ):
+   Delta  X_i (cm) = k * (x_i - x_{i-1}), \qquad Delta  Y_i (cm) = k * (y_i - y_{i-1})
+   ระยะบินตรง  d_i = sqrt{Delta  X_i^2 + Delta  Y_i^2} (cm), \qquad มุมหัน  theta_i = atan2(Delta  Y_i, Delta  X_i)
    *(ข้อจำกัดของโดรน SDK ทั่วไป: ระยะสั่งเคลื่อนที่ต่อคำสั่งต้องไม่ต่ำกว่าค่าขั้นต่ำของโดรน เช่น 20 cm)*
 
 สูตรที่ 3: วิเคราะห์ภาพถ่ายโดรนด้วย Excess Green Index (ExG)
@@ -139,24 +140,24 @@ ExG(x, y) = 2G(x, y) - R(x, y) - B(x, y)
 นับจำนวนพิกเซลที่ ExG(x, y) > T_{green} (เช่น T_{green} = 20 ปรับค่าตามแสงห้อง):
 Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_{green}}{จำนวนพิกเซลทั้งหมดในกรอบแปลง} x 100
 
-สูตรที่ 4: คำนวณปริมาณธาตุอาหารที่ดินขาด (\Delta N, \Delta P_2O_5, \Delta K_2O) และแจ้งเตือน pH
+สูตรที่ 4: คำนวณปริมาณธาตุอาหารที่ดินขาด (Delta  N, Delta  P_2O_5, Delta  K_2O) และแจ้งเตือน pH
 
 1. แปลงค่าธาตุอาหารที่มีอยู่ในดิน จากหน่วย mg/kg (ppm) เป็นมวลต่อพื้นที่ (g/m^2):
-   มวลเนื้อดินต่อ  1 m^2 (kg/m^2) = \rho_{soil}\ (g/cm^3) x d_{root}\ (m) x 1000
-   M_{soil\_elem, i}\ (g/m^2) = C_{measured, i}\ (mg/kg) x \rho_{soil} x d_{root}
+   มวลเนื้อดินต่อ  1 m^2 (kg/m^2) = rho_{soil}\ (g/cm^3) x d_{root}\ (m) x 1000
+   M_{soil\_elem, i}\ (g/m^2) = C_{measured, i}\ (mg/kg) x (rho_{soil} x d_{root})
    *(หมายเหตุ: mg/kg x 1000\ kg/m^2 x 10^{-3}\ g/mg = mg/kg x 1 พอดี)*
 
-2. แปลงรูปธาตุบริสุทธิ์เป็นรูปปุ๋ยออกไซด์ เพื่อให้ตรงกับหน่วยของตารางเป้าหมาย:
-   M_{soil, N} = M_{soil\_elem, N}, \qquad M_{soil, P_2O_5} = 2.29 x M_{soil\_elem, P}, \qquad M_{soil, K_2O} = 1.20 x M_{soil\_elem, K}
+2. แปลงรูปธาตุบริสุทธิ์เป็นรูปปุ๋ยออกไซด์และคูณสัมประสิทธิ์การดูดใช้ได้ต่อฤดู (f_N = 0.30,\ f_P = 0.20,\ f_K = 0.15 เพื่อสะท้อนสัดส่วนที่พืชดูดใช้ได้จริงจากดินใน 1 ระยะ):
+   M_{soil, N} = M_{soil\_elem, N} x 0.30, \qquad M_{soil, P_2O_5} = 2.29 x M_{soil\_elem, P} x 0.20, \qquad M_{soil, K_2O} = 1.20 x M_{soil\_elem, K} x 0.15
 
-   > ตัวอย่างคำนวณ: ดินร่วน \rho = 1.35\ g/cm^3, ข้าวโพดระยะเติบโต d_{root} = 0.25\ m, วัดค่า N ในดินได้ 12\ mg/kg และ P ได้ 3\ mg/kg:
-   > M_{soil, N} = 12 x 1.35 x 0.25 = 4.05\ g/m^2
-   > M_{soil, P_2O_5} = 2.29 x (3 x 1.35 x 0.25) = 2.32\ g/m^2
+   > ตัวอย่างคำนวณ: ดินร่วน rho = 1.35\ g/cm^3, ข้าวโพดระยะเติบโต d_{root} = 0.25\ m, วัดค่า N ได้ 12\ mg/kg และ P ระดับต่ำ 5\ mg/kg:
+   > M_{soil, N} = 12 x 1.35 x 0.25 x 0.30 = 1.215\ g/m^2
+   > M_{soil, P_2O_5} = 2.29 x (5 x 1.35 x 0.25) x 0.20 = 0.773\ g/m^2
 
-3. คำนวณปริมาณธาตุที่ขาดทั้งแปลง (\Delta M_i หน่วย กรัม):
-   \Delta M_i\ (g) = \max0,\ M_{target, i} - M_{soil, i} x A_{real}\ (m^2)
-   > ต่อจากตัวอย่าง: เป้าหมายข้าวโพดระยะเติบโต M_{target, N} = 6.00\ g/m^2, พื้นที่จริง A_{real} = 100\ m^2:
-   > \Delta M_{N} = (6.00 - 4.05) x 100 = 195\ g
+3. คำนวณปริมาณธาตุที่ขาดทั้งแปลง (Delta  M_i หน่วย กรัม):
+   Delta  M_i\ (g) = max(0,\ M_{target, i} - M_{soil, i}) x A_{real}\ (m^2)
+   > ต่อจากตัวอย่าง: เป้าหมายข้าวโพดระยะเติบโต M_{target, N} = 6.00\ g/m^2, M_{target, P_2O_5} = 1.50\ g/m^2, พื้นที่จริง A_{real} = 100\ m^2:
+   > Delta  M_{N} = (6.00 - 1.215) x 100 = 478.5\ g, \qquad Delta  M_{P_2O_5} = (1.50 - 0.773) x 100 = 72.7\ g
    *(กรณีใช้ LDD Soil Test Kit ที่ให้ผลเป็นระดับ `ต่ำ / ปานกลาง / สูง` ให้ตั้งค่าตัวแทน C_{measured} ของแต่ละระดับไว้ใน Config เพื่อเข้าสูตรเดียวกันได้ทันที)*
 
 4. เงื่อนไขตรวจสอบ pH (Safety & Absorption Warning):
@@ -166,9 +167,9 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
 สูตรที่ 5: คำนวณปริมาตรน้ำหมัก, ย่อสเกล Demo และเวลาเปิดปั๊ม (Pump Runtime)
 
 1. ปริมาตรน้ำหมักที่ต้องการจริงตามทฤษฎี (เมื่อความเข้มข้นน้ำหมักแต่ละถังคือ C_{bio, i} หน่วย mg/ml จากการตรวจวัดหรือสอบเทียบ):
-   V_{real, i}\ (ml) = \frac{\Delta M_i\ (g) x 1000}{C_{bio, i}\ (mg/ml)}
+   V_{real, i}\ (ml) = \frac{Delta  M_i\ (g) x 1000}{C_{bio, i}\ (mg/ml)}
 2. การย่อสเกลปริมาตรสำหรับผสมโชว์บนโต๊ะ (Demo Batch Scaling):
-   ผสมในถังกลางปริมาตรรวม V_{batch} = 200 ml (เพื่อให้เวลาเปิดปั๊มทุกตัวนานพอ ไม่เกิด error ช่วงปั๊มออกตัว) โดยรักษา อัตราส่วน N : P : K จริง แล้วย่อลงมาเป็นส่วนของน้ำหมักรวม V_{demo\_bio} = 80 ml และน้ำเปล่า V_{demo\_water} = V_{batch} - \sum V_{demo, i}:
+   ผสมในถังกลางปริมาตรรวม V_{batch} = 200 ml (เพื่อให้เวลาเปิดปั๊มทุกตัวนานพอ ไม่เกิด error ช่วงปั๊มออกตัว) โดยรักษา อัตราส่วน N : P : K จริง แล้วย่อลงมาเป็นส่วนของน้ำหมักรวม V_{demo\_bio} = 80 ml และน้ำเปล่า V_{demo\_water} = V_{batch} - sum V_{demo, i}:
    V_{demo, i} = V_{demo\_bio} x \frac{V_{real, i}}{V_{real, N} + V_{real, P} + V_{real, K}}
    *(กรณีที่ดินไม่ขาดธาตุใดเลย คือผลรวมเป็น 0 ให้ตั้งค่าทุกปั๊มเป็น 0 วินาที และแจ้งเตือนบนเว็บว่า "ดินมีความสมบูรณ์เพียงพอ ไม่ต้องเติมปุ๋ย")*
 
@@ -182,8 +183,8 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
    หลังเปิดปั๊มครบ 4 ตัว ให้รอ 3 วินาทีแล้วอ่านค่า `mixer_tds_ppm` *(หมายเหตุ: TDS/EC ใช้วัดปริมาณเกลือ/ไอออนละลายรวมเพื่อคุมความปลอดภัยไม่ให้ใบไหม้ ไม่ใช่วัดไนโตรเจนอินทรีย์โดยตรง)*:
    - ถ้า `mixer_tds_ppm` <= `safe_ec_max_ppm` -> สถานะ = `'ready'` (อนุญาตให้ตักขึ้นโดรนได้ และล้างหัววัดด้วยน้ำสะอาด)
    - ถ้า `mixer_tds_ppm` > `safe_ec_max_ppm` -> คำนวณปริมาตรน้ำเปล่าเติมเพิ่มเพื่อลดความเข้มข้นตามสมการเจือจาง C_1 V_1 = C_2 V_2:
-     V_{add\_water} = V_{current} x <=ft(\frac{EC_{current}}{EC_{safe}} - 1\right)
-     สั่งเปิดปั๊มน้ำเปล่า (ตัวที่ 4) เพิ่มเป็นเวลา t_{add} = V_{add\_water} / Q_{pump, water} แล้วอ่านค่า EC ซ้ำ
+     V_{add\_water} = V_{current} x (\frac{EC_{current}}{EC_{safe}} - 1)
+     สั่งเปิดปั๊มน้ำเปล่า (ตัวที่ 4) เพิ่มเป็นเวลา t_{add} = V_{add\_water} / Q_{pump, water} (โดยระบบจะรีเซ็ตเวลาปั๊ม N, P, K เป็น `0` เพื่อให้ ESP32 #2 ดึงคำสั่งผ่าน `GET /api/mixer/command` ไปเติมเฉพาะน้ำเปล่า) แล้วกวนและอ่านค่า EC ซ้ำ
 
 ---
 
@@ -193,21 +194,21 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
 
 | Endpoint | Method | ผู้ส่ง -> ผู้รับ | Payload ตัวอย่าง (Request -> Response) |
 | :--- | :---: | :--- | :--- |
-| `/api/crops` | `GET` | Web UI <=ftarrow Flask | Resp `200`: `{"crops": [{"id": 1, "crop_name": "ข้าวโพดเลี้ยงสัตว์", "variety": "ลูกผสมทั่วไป", "growth_stage": "1. ระยะต้นกล้า/รองพื้น (0–20 วัน)", "root_depth_m": 0.15, "target_n_g_m2": 2.5, "target_p2o5_g_m2": 2.0, "target_k2o_g_m2": 1.5, "ph_min": 5.5, "ph_max": 7.0, "safe_ec_max_ppm": 800}]}` |
-| `/api/plots` | `GET` | Web UI <=ftarrow Flask | Resp `200`: `{"plots": [{"id": 1, "plot_name": "...", "confirmed_area_m2": 100.0, ...}]}` |
+| `/api/crops` | `GET` | Web UI <- Flask | Resp `200`: `{"crops": [{"id": 1, "crop_name": "ข้าวโพดเลี้ยงสัตว์", "variety": "ลูกผสมทั่วไป", "growth_stage": "1. ระยะต้นกล้า/รองพื้น (0–20 วัน)", "root_depth_m": 0.15, "target_n_g_m2": 2.5, "target_p2o5_g_m2": 2.0, "target_k2o_g_m2": 1.5, "ph_min": 5.5, "ph_max": 7.0, "safe_ec_max_ppm": 800}]}` |
+| `/api/plots` | `GET` | Web UI <- Flask | Resp `200`: `{"plots": [{"id": 1, "plot_name": "...", "confirmed_area_m2": 100.0, ...}]}` |
 | `/api/plots` | `POST` | Web UI -> Flask | Req: `{"plot_name": "แปลง A", "polygon_geojson": {...}, "calculated_area_m2": 102.4, "confirmed_area_m2": 100.0, "soil_type": "loam", "crop_profile_id": 2}`<br>Resp `201`: `{"plot_id": 1, "waypoints_cm": [{"dx": 80.0, "dy": 0.0, "distance_cm": 80.0, "angle_deg": 0.0}]}` |
 | `/api/soil/update` | `POST` | ESP32 #1 / Sim -> Flask | Req: `{"plot_id": 1, "moisture_pct": 42.5, "ec_us_cm": 310, "n": null, "p": null, "k": null, "ph": null, "simulated": false}`<br>Resp `200`: `{"ok": true, "provenance": "LIVE"}` *(หาก `"simulated": true` ระบบต้องบันทึกเป็น `SIMULATED`)* |
 | `/api/soil/manual` | `POST` | Web UI -> Flask | Req: `{"plot_id": 1, "n_level": "medium", "p_level": "low", "k_level": "medium", "ph_value": 6.0}`<br>Resp `200`: `{"ok": true, "nitrogen_mg_kg": 15.0, "phosphorus_mg_kg": 5.0, "potassium_mg_kg": 60.0, "provenance": "MANUAL"}` |
-| `/api/soil/latest/<plot_id>` | `GET` | Web UI <=ftarrow Flask | Resp `200`: `{"reading": {"moisture_pct": 42.5, "ec_us_cm": 310, "nitrogen_mg_kg": 15.0, "phosphorus_mg_kg": 5.0, "potassium_mg_kg": 60.0, "ph_value": 6.0, "source": "esp32_live", "recorded_at": "2026-11-16T09:30:00"}}` |
+| `/api/soil/latest/<plot_id>` | `GET` | Web UI <- Flask | Resp `200`: `{"reading": {"moisture_pct": 42.5, "ec_us_cm": 310, "nitrogen_mg_kg": 15.0, "phosphorus_mg_kg": 5.0, "potassium_mg_kg": 60.0, "ph_value": 6.0, "source": "esp32_live", "recorded_at": "2026-11-16T09:30:00"}}` |
 | `/api/fermenter/telemetry` | `POST` | ESP32 #2 / Sim -> Flask | Req: `{"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "mixer_tds_ppm": 740, "simulated": false}`<br>Resp `200`: `{"ok": true, "is_ready": true}` |
-| `/api/fermenter/latest` | `GET` | Web UI <=ftarrow Flask | Resp `200`: `{"telemetry": {"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "mixer_tds_ppm": 740, "is_ready": true, "recorded_at": "..."}}` |
+| `/api/fermenter/latest` | `GET` | Web UI <- Flask | Resp `200`: `{"telemetry": {"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "mixer_tds_ppm": 740, "is_ready": true, "recorded_at": "..."}}` |
 | `/api/mixer/calculate` | `POST` | Web UI -> Flask | Req: `{"plot_id": 1, "crop_profile_id": 2, "confirmed_area_m2": 100.0, "soil_type": "loam"}`<br>Resp `200`: `{"job_id": 5, "deficits_g": {"n": 195.0, "p2o5": 42.0, "k2o": 10.0}, "demo_volumes_ml": {"n": 63.2, "p": 13.6, "k": 3.2, "water": 120.0}, "pump_seconds": {"n": 12.6, "p": 2.7, "k": 0.6, "water": 24.0}, "ph_warning": null}` |
-| `/api/mixer/command` | `GET` | ESP32 #2 <=ftarrow Flask | Resp `200` (มีงานค้าง): `{"has_command": true, "job_id": 5, "pump_n_ms": 12600, "pump_p_ms": 2700, "pump_k_ms": 0, "pump_water_ms": 24000}`<br>Resp `200` (ไม่มีงาน): `{"has_command": false, "job_id": null}` |
+| `/api/mixer/command` | `GET` | ESP32 #2 <- Flask | Resp `200` (มีงานค้าง): `{"has_command": true, "job_id": 5, "pump_n_ms": 12600, "pump_p_ms": 2700, "pump_k_ms": 0, "pump_water_ms": 24000}`<br>Resp `200` (ไม่มีงาน): `{"has_command": false, "job_id": null}` |
 | `/api/mixer/status` | `POST` | ESP32 #2 -> Flask | Req: `{"job_id": 5, "status": "ready", "final_tds_ppm": 780}`<br>Resp `200`: `{"ok": true, "status": "ready"}` |
 | `/api/mixer/check-ec` | `POST` | Web UI -> Flask | Req: `{"job_id": 5, "simulated": true}`<br>Resp `200`: `{"measured_tds_ppm": 780, "safe_ec_max_ppm": 1000, "needs_dilution": false, "add_water_ml": 0.0, "add_water_sec": 0.0, "message": "ค่าความเค็มอยู่ในเกณฑ์ปลอดภัย"}` |
 | `/api/drone/mission` | `POST` | Web UI -> Flask Drone | Req: `{"plot_id": 1, "mode": "survey_photo", "execution_mode": "SIMULATED", "waypoints_cm": [...]}`<br>Resp `200`: `{"ok": true, "execution_mode": "SIMULATED", "status": "completed", "message": "..."}` |
 | `/api/drone/analyze-image` | `POST` | Web UI -> Flask | Req: `multipart/form-data` (`image` file + `plot_id`)<br>Resp `200`: `{"green_coverage_pct": 64.2, "mask_image_url": "/static/uploads/mask_1.png"}` |
-| `/api/config` | `GET`/`POST` | Web UI <=ftrightarrow Flask | JSON: `{"q_pump_n": 5.0, "q_pump_p": 5.0, "q_pump_k": 5.0, "q_pump_water": 5.0, "table_width_cm": 100.0, "table_height_cm": 80.0}` |
+| `/api/config` | `GET`/`POST` | Web UI <-> Flask | JSON: `{"q_pump_n": 5.0, "q_pump_p": 5.0, "q_pump_k": 5.0, "q_pump_water": 5.0, "table_width_cm": 100.0, "table_height_cm": 80.0}` |
 
 ---
 
@@ -219,7 +220,7 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
 - ฟอสฟอรัส (P): `low` = `5.0 mg/kg`, `medium` = `15.0 mg/kg`, `high` = `30.0 mg/kg`
 - โพแทสเซียม (K): `low` = `30.0 mg/kg`, `medium` = `60.0 mg/kg`, `high` = `100.0 mg/kg`
 
-6.2 ตารางความหนาแน่นมวลดินอ้างอิง (\rho_{soil})
+6.2 ตารางความหนาแน่นมวลดินอ้างอิง (rho_{soil})
 - `sandy_loam` (ดินร่วนปนทราย) = `1.45 g/cm³`
 - `loam` (ดินร่วน) = `1.35 g/cm³`
 - `clay_loam` (ดินร่วนเหนียว) = `1.25 g/cm³`

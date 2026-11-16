@@ -134,15 +134,18 @@ def calculate_nutrient_deficit(
     target_k2o_g_m2: float,
     ph_min: float,
     ph_max: float,
+    n_avail_factor: float = 0.30,
+    p_avail_factor: float = 0.20,
+    k_avail_factor: float = 0.15,
 ) -> dict[str, Any]:
     """Calculate N, P2O5, K2O deficits (g) across area_m2 and check soil pH warnings."""
     if area_m2 <= 0 or bulk_density_g_cm3 <= 0 or root_depth_m <= 0:
         raise ValueError("Area, bulk density, and root depth must be positive.")
 
     soil_factor = bulk_density_g_cm3 * root_depth_m
-    m_soil_n = measured_n_mg_kg * soil_factor
-    m_soil_p2o5 = (measured_p_mg_kg * soil_factor) * P_TO_P2O5_FACTOR
-    m_soil_k2o = (measured_k_mg_kg * soil_factor) * K_TO_K2O_FACTOR
+    m_soil_n = (measured_n_mg_kg * soil_factor) * n_avail_factor
+    m_soil_p2o5 = (measured_p_mg_kg * soil_factor) * P_TO_P2O5_FACTOR * p_avail_factor
+    m_soil_k2o = (measured_k_mg_kg * soil_factor) * K_TO_K2O_FACTOR * k_avail_factor
 
     delta_n_g = max(0.0, target_n_g_m2 - m_soil_n) * area_m2
     delta_p2o5_g = max(0.0, target_p2o5_g_m2 - m_soil_p2o5) * area_m2

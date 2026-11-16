@@ -335,6 +335,9 @@ def create_app(
                 target_k2o_g_m2=float(profile["target_k2o_g_m2"]),
                 ph_min=float(profile["ph_min"]),
                 ph_max=float(profile["ph_max"]),
+                n_avail_factor=cfg.n_avail_factor,
+                p_avail_factor=cfg.p_avail_factor,
+                k_avail_factor=cfg.k_avail_factor,
             )
 
             mixing_res = calculate_mixing_plan(
@@ -491,10 +494,23 @@ def create_app(
 
             new_status = "diluting" if result["needs_dilution"] else "ready"
             if job:
-                conn.execute(
-                    "UPDATE mixing_jobs SET status = ?, final_tds_ppm = ? WHERE id = ?",
-                    (new_status, measured_tds, job_id),
-                )
+                if result["needs_dilution"]:
+                    # Queue ONLY clean water dilution runtime so ESP32 does not re-pump N/P/K
+                    conn.execute(
+                        """
+                        UPDATE mixing_jobs
+                        SET status = ?, final_tds_ppm = ?,
+                            pump_n_sec = 0.0, pump_p_sec = 0.0, pump_k_sec = 0.0,
+                            pump_water_sec = ?
+                        WHERE id = ?
+                        """,
+                        (new_status, measured_tds, result["add_water_sec"], job_id),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE mixing_jobs SET status = ?, final_tds_ppm = ? WHERE id = ?",
+                        (new_status, measured_tds, job_id),
+                    )
                 conn.commit()
 
         result["mode"] = mode

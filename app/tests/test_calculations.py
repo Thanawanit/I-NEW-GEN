@@ -68,8 +68,8 @@ class TestCalculations(unittest.TestCase):
     def test_calculate_nutrient_deficit_converts_oxides_and_warns_acidic_ph(self) -> None:
         res = calculate_nutrient_deficit(
             measured_n_mg_kg=12.0,
-            measured_p_mg_kg=3.0,
-            measured_k_mg_kg=50.0,
+            measured_p_mg_kg=5.0,
+            measured_k_mg_kg=30.0,
             ph_value=4.8,
             bulk_density_g_cm3=1.35,
             root_depth_m=0.25,
@@ -80,10 +80,12 @@ class TestCalculations(unittest.TestCase):
             ph_min=5.5,
             ph_max=7.0,
         )
-        # M_soil_n = 12 * 1.35 * 0.25 = 4.05 -> deficit = (6.0 - 4.05) * 100 = 195.0 g
-        self.assertAlmostEqual(res["deficits_g"]["n"], 195.0, places=2)
-        # M_soil_p2o5 = 3 * 1.35 * 0.25 * 2.29 = 2.318625 > 1.5 -> deficit = 0.0 g
-        self.assertEqual(res["deficits_g"]["p2o5"], 0.0)
+        # M_soil_n = 12 * 1.35 * 0.25 * 0.30 = 1.215 -> deficit = (6.0 - 1.215) * 100 = 478.5 g
+        self.assertAlmostEqual(res["deficits_g"]["n"], 478.5, places=2)
+        # M_soil_p2o5 = 5 * 1.35 * 0.25 * 2.29 * 0.20 = 0.772875 < 1.5 -> positive P deficit
+        self.assertGreater(res["deficits_g"]["p2o5"], 0.0)
+        # M_soil_k2o = 30 * 1.35 * 0.25 * 1.20 * 0.15 = 1.8225 < 2.5 -> positive K deficit
+        self.assertGreater(res["deficits_g"]["k2o"], 0.0)
         self.assertIsNotNone(res["ph_warning"])
         self.assertIn("กรด", res["ph_warning"])
 
@@ -249,6 +251,21 @@ class TestFlaskAPI(unittest.TestCase):
         ec_resp = self.client.post("/api/mixer/check-ec", json={"job_id": job_id, "mode": "sim", "simulated": True})
         self.assertEqual(ec_resp.status_code, 200)
         self.assertFalse(ec_resp.get_json()["needs_dilution"])
+
+        # Over-limit EC must queue ONLY clean water dilution (pump_n/p/k_ms == 0)
+        dil_resp = self.client.post(
+            "/api/mixer/check-ec",
+            json={"job_id": job_id, "mode": "sim", "simulated": True, "measured_tds_ppm": 1500.0},
+        )
+        self.assertEqual(dil_resp.status_code, 200)
+        self.assertTrue(dil_resp.get_json()["needs_dilution"])
+
+        dil_cmd = self.client.get("/api/mixer/command?mode=sim").get_json()
+        self.assertTrue(dil_cmd["has_command"])
+        self.assertEqual(dil_cmd["pump_n_ms"], 0)
+        self.assertEqual(dil_cmd["pump_p_ms"], 0)
+        self.assertEqual(dil_cmd["pump_k_ms"], 0)
+        self.assertGreater(dil_cmd["pump_water_ms"], 0)
 
         # 5. Drone LIVE should report 501 (not configured), SIMULATED should succeed
         live_drone = self.client.post("/api/drone/mission", json={"mode": "survey_photo", "execution_mode": "LIVE"})
