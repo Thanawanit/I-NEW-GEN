@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+*.db
+app/calibration_overrides.json
+app/static/uploads/
+.DS_Store
+Thumbs.db
