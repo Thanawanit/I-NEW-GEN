@@ -37,6 +37,7 @@ class AppConfig:
     demo_batch_ml: float = 200.0
     demo_bio_ml: float = 80.0
     min_pump_runtime_s: float = 1.5
+    water_tds_ppm: float = 150.0
     exg_green_threshold: int = 20
     fermenter_temp_min_c: float = 25.0
     fermenter_temp_max_c: float = 40.0

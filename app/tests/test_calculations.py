@@ -127,10 +127,11 @@ class TestCalculations(unittest.TestCase):
         self.assertFalse(safe["needs_dilution"])
         self.assertEqual(safe["add_water_ml"], 0.0)
 
-        high = calculate_ec_dilution(1500.0, 1000.0, 200.0, 5.0)
+        # V=200, EC=1500, safe=800, water=150 -> 200 * (1500-800)/(800-150) = 215.38 ml
+        high = calculate_ec_dilution(1500.0, 800.0, 200.0, 5.0, water_ec_ppm=150.0)
         self.assertTrue(high["needs_dilution"])
-        self.assertAlmostEqual(high["add_water_ml"], 100.0, places=2)
-        self.assertAlmostEqual(high["add_water_sec"], 20.0, places=2)
+        self.assertAlmostEqual(high["add_water_ml"], 215.38, places=2)
+        self.assertAlmostEqual(high["add_water_sec"], 43.08, places=2)
 
 
 class TestFlaskAPI(unittest.TestCase):

@@ -8,9 +8,9 @@ Software Architecture, Mathematical Formulas & Crop Database Spec
 
 | เลเยอร์ | เทคโนโลยีที่กำหนด | หน้าที่หลัก |
 | :--- | :--- | :--- |
-| Frontend (Map & UI) | HTML5 + CSS + JavaScript + Leaflet.js + Leaflet.draw + Leaflet.GeometryUtil + Esri World Imagery / OpenStreetMap | วาด Polygon ขอบเขตแปลงบนแผนที่ภาพถ่ายดาวเทียมฟรี (ไม่ต้องใช้บัตรเครดิต/API Key), คำนวณพื้นที่ (m^2) พร้อมช่องให้ผู้ใช้แก้ไขเลขเอง, ฟอร์มเลือกพืช/พันธุ์/ระยะเติบโต, และ Dashboard แสดงผลเรียลไทม์ |
-| Backend Server | Python Flask | คำนวณสูตรปุ๋ยและระยะบิน, ประมวลผลภาพถ่ายโดรน, สื่อสารกับโดรนผ่าน USB Wi-Fi, และเปิด REST API ให้ ESP32 ส่งค่า/รับคำสั่ง |
-| Image Processing | OpenCV (`cv2`) + NumPy | อ่านภาพถ่ายจากโดรนรอบที่ 1 และคำนวณดัชนีสีเขียว (ExG) + เปอร์เซ็นต์พื้นที่พืชสมบูรณ์ |
+| Frontend (Map & UI) | HTML5 + CSS + JavaScript + Leaflet.js + Leaflet.draw (`L.GeometryUtil.geodesicArea`) + Esri World Imagery / OpenStreetMap | วาด Polygon ขอบเขตแปลงบนแผนที่ภาพถ่ายดาวเทียมฟรี (ไม่ต้องใช้บัตรเครดิต/API Key), คำนวณพื้นที่ (m^2) แบบ Geodesic พร้อมช่องให้ผู้ใช้แก้ไขเลขเอง, ฟอร์มเลือกพืช/พันธุ์/ระยะเติบโต, และ Dashboard แสดงผลเรียลไทม์ |
+| Backend Server | Python Flask (`host='0.0.0.0'`, พอร์ต `5000`) | คำนวณสูตรปุ๋ยและระยะบิน, ประมวลผลภาพถ่ายโดรน, สื่อสารกับโดรนผ่าน USB Wi-Fi, และเปิด REST API ให้ ESP32 ส่งค่า/รับคำสั่ง |
+| Image Processing | OpenCV (`cv2`) + NumPy | อ่านภาพถ่ายจากโดรนรอบที่ 1 (OpenCV อ่านสีเป็น BGR ต้องแปลงเป็น `int16` ก่อนคำนวณ 2G - R - B เพื่อป้องกัน `uint8` overflow) |
 | Database | SQLite | จัดเก็บข้อมูลแปลงเกษตร, เกณฑ์ธาตุอาหารพืช 3 ชนิด, ค่าตรวจดินสด, สถานะถังหมัก 3 ถัง และประวัติการสั่งผสม/บินพ่น |
 | IoT Firmware | Arduino C++ (สำหรับ ESP32 #1 ชุดดิน และ ESP32 #2 เครื่องหมัก/ผสม) | อ่านค่าเซนเซอร์และยิง HTTP POST/GET JSON เข้า Flask Server ผ่าน Wi-Fi วงเดียวกับโน้ตบุ๊ก |
 
@@ -104,9 +104,9 @@ CREATE TABLE mixing_jobs (
 | ข้าวโพดเลี้ยงสัตว์ | ลูกผสมทั่วไป | 1. ระยะต้นกล้า/รองพื้น (0–20 วัน) | 0.15 m | 2.50 | 2.00 | 1.50 | 5.5–7.0 | ≤ 800 |
 | ข้าวโพดเลี้ยงสัตว์ | ลูกผสมทั่วไป | 2. ระยะเจริญเติบโต/ทำรุ่น (21–45 วัน) | 0.25 m | 6.00 | 1.50 | 2.50 | 5.5–7.0 | ≤ 1,000 |
 | ข้าวโพดเลี้ยงสัตว์ | ลูกผสมทั่วไป | 3. ระยะออกดอก–ติดฝัก (46+ วัน) | 0.30 m | 2.75 | 1.50 | 2.88 | 5.5–7.0 | ≤ 1,000 |
-| ถั่วลายเสือ | พันธุ์พื้นเมืองแม่ฮ่องสอน | 1. ระยะต้นกล้า (0–20 วัน) | 0.15 m | 1.00 | 0.30 | 0.50 | 5.5–6.8 | ≤ 700 |
-| ถั่วลายเสือ | พันธุ์พื้นเมืองแม่ฮ่องสอน | 2. ระยะเจริญเติบโต (21–45 วัน) | 0.20 m | 1.50 | 0.30 | 0.80 | 5.5–6.8 | ≤ 900 |
-| ถั่วลายเสือ | พันธุ์พื้นเมืองแม่ฮ่องสอน | 3. ระยะลงเข็ม–ติดฝัก (46+ วัน) | 0.25 m | 0.50 | 0.30 | 1.00 | 5.5–6.8 | ≤ 900 |
+| ถั่วลายเสือ (ถั่วลิสงพันธุ์ลายเสือ) | พันธุ์พื้นเมืองแม่ฮ่องสอน | 1. ระยะต้นกล้า (0–20 วัน) | 0.15 m | 1.00 | 0.30 | 0.50 | 5.5–6.8 | ≤ 700 |
+| ถั่วลายเสือ (ถั่วลิสงพันธุ์ลายเสือ) | พันธุ์พื้นเมืองแม่ฮ่องสอน | 2. ระยะเจริญเติบโต (21–45 วัน) | 0.20 m | 1.50 | 0.30 | 0.80 | 5.5–6.8 | ≤ 900 |
+| ถั่วลายเสือ (ถั่วลิสงพันธุ์ลายเสือ) | พันธุ์พื้นเมืองแม่ฮ่องสอน | 3. ระยะลงเข็ม–ติดฝัก (46+ วัน) | 0.25 m | 0.50 | 0.30 | 1.00 | 5.5–6.8 | ≤ 900 |
 | กาแฟอราบิก้า | คาทิมอร์ (Catimor) | 1. ระยะต้นกล้า/ฟื้นต้นหลังเก็บเกี่ยว | 0.20 m | 3.00 | 0.40 | 2.00 | 5.0–6.2 | ≤ 800 |
 | กาแฟอราบิก้า | คาทิมอร์ (Catimor) | 2. ระยะแตกทรงพุ่ม/บำรุงใบ (แนว `15-3-6`) | 0.30 m | 8.00 | 0.60 | 4.00 | 5.0–6.2 | ≤ 1,000 |
 | กาแฟอราบิก้า | คาทิมอร์ (Catimor) | 3. ระยะติดผล–บำรุงเมล็ด (แนว `3-6-15`) | 0.35 m | 4.50 | 0.80 | 11.00 | 5.0–6.2 | ≤ 1,100 |
@@ -129,7 +129,7 @@ CREATE TABLE mixing_jobs (
 2. หา Bounding Box ของแปลงบนแผนที่จริง: ความกว้าง W_{real} = x_{max} - x_{min} (m) และความยาว H_{real} = y_{max} - y_{min} (m)
 3. หาตัวคูณย่อสเกล k (หน่วย cm/m):
    k = min(\frac{W_{table}}{W_{real}},\ \frac{H_{table}}{H_{real}})
-4. แปลงจุดมุมแปลงแต่ละจุดเป็นคำสั่งเคลื่อนที่ของโดรน (กำหนดจุดเริ่มต้นที่มุมแปลงแรก และหันหัวโดรนไปทางทิศเหนือ `+Y` ของโต๊ะ):
+4. แปลงจุดมุมแปลงแต่ละจุดเป็นคำสั่งเคลื่อนที่ของโดรน (กำหนดจุดเริ่มต้นที่มุมแปลงแรก และหันหัวโดรนไปตามแกน `+X` ทิศตะวันออกของกรอบโต๊ะ เพื่อให้สอดคล้องกับ atan2(Delta  Y_i, Delta  X_i) = 0^ deg):
    Delta  X_i (cm) = k * (x_i - x_{i-1}), \qquad Delta  Y_i (cm) = k * (y_i - y_{i-1})
    ระยะบินตรง  d_i = sqrt{Delta  X_i^2 + Delta  Y_i^2} (cm), \qquad มุมหัน  theta_i = atan2(Delta  Y_i, Delta  X_i)
    *(ข้อจำกัดของโดรน SDK ทั่วไป: ระยะสั่งเคลื่อนที่ต่อคำสั่งต้องไม่ต่ำกว่าค่าขั้นต่ำของโดรน เช่น 20 cm)*
@@ -150,14 +150,14 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
 2. แปลงรูปธาตุบริสุทธิ์เป็นรูปปุ๋ยออกไซด์และคูณสัมประสิทธิ์การดูดใช้ได้ต่อฤดู (f_N = 0.30,\ f_P = 0.20,\ f_K = 0.15 เพื่อสะท้อนสัดส่วนที่พืชดูดใช้ได้จริงจากดินใน 1 ระยะ):
    M_{soil, N} = M_{soil\_elem, N} x 0.30, \qquad M_{soil, P_2O_5} = 2.29 x M_{soil\_elem, P} x 0.20, \qquad M_{soil, K_2O} = 1.20 x M_{soil\_elem, K} x 0.15
 
-   > ตัวอย่างคำนวณ: ดินร่วน rho = 1.35\ g/cm^3, ข้าวโพดระยะเติบโต d_{root} = 0.25\ m, วัดค่า N ได้ 12\ mg/kg และ P ระดับต่ำ 5\ mg/kg:
-   > M_{soil, N} = 12 x 1.35 x 0.25 x 0.30 = 1.215\ g/m^2
+   > ตัวอย่างคำนวณ: ดินร่วน rho = 1.35\ g/cm^3, ข้าวโพดระยะเติบโต d_{root} = 0.25\ m, วัดค่า N ระดับกลางจาก LDD ได้ 15\ mg/kg และ P ระดับต่ำ 5\ mg/kg *(สมมติให้ความเข้มข้นเฉลี่ยในเขตรากพืชเท่ากับหน้าดินที่เก็บ 0–15 ซม.)*:
+   > M_{soil, N} = 15 x 1.35 x 0.25 x 0.30 = 1.519\ g/m^2
    > M_{soil, P_2O_5} = 2.29 x (5 x 1.35 x 0.25) x 0.20 = 0.773\ g/m^2
 
 3. คำนวณปริมาณธาตุที่ขาดทั้งแปลง (Delta  M_i หน่วย กรัม):
    Delta  M_i\ (g) = max(0,\ M_{target, i} - M_{soil, i}) x A_{real}\ (m^2)
    > ต่อจากตัวอย่าง: เป้าหมายข้าวโพดระยะเติบโต M_{target, N} = 6.00\ g/m^2, M_{target, P_2O_5} = 1.50\ g/m^2, พื้นที่จริง A_{real} = 100\ m^2:
-   > Delta  M_{N} = (6.00 - 1.215) x 100 = 478.5\ g, \qquad Delta  M_{P_2O_5} = (1.50 - 0.773) x 100 = 72.7\ g
+   > Delta  M_{N} = (6.00 - 1.519) x 100 = 448.1\ g, \qquad Delta  M_{P_2O_5} = (1.50 - 0.773) x 100 = 72.7\ g
    *(กรณีใช้ LDD Soil Test Kit ที่ให้ผลเป็นระดับ `ต่ำ / ปานกลาง / สูง` ให้ตั้งค่าตัวแทน C_{measured} ของแต่ละระดับไว้ใน Config เพื่อเข้าสูตรเดียวกันได้ทันที)*
 
 4. เงื่อนไขตรวจสอบ pH (Safety & Absorption Warning):
@@ -179,12 +179,12 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
    > ตัวอย่างคำนวณ: ปั๊ม N มีอัตราไหลที่สอบเทียบไว้ Q_{pump, N} = 5.0\ ml/s, ต้องจ่ายน้ำหมัก N ปริมาตร V_{demo, N} = 40 ml:
    > t_{pump, N} = \frac{40}{5.0} = 8.0\ วินาที
 
-4. ลูปตรวจเช็กความเค็มและเจือจาง EC อัตโนมัติ (Salinity/Osmotic Burn Guard):
-   หลังเปิดปั๊มครบ 4 ตัว ให้รอ 3 วินาทีแล้วอ่านค่า `mixer_tds_ppm` *(หมายเหตุ: TDS/EC ใช้วัดปริมาณเกลือ/ไอออนละลายรวมเพื่อคุมความปลอดภัยไม่ให้ใบไหม้ ไม่ใช่วัดไนโตรเจนอินทรีย์โดยตรง)*:
+4. ลูปตรวจเช็กความเค็มและเจือจาง TDS/EC อัตโนมัติ (Salinity/Osmotic Burn Guard):
+   หลังเปิดปั๊มครบ 4 ตัว ให้กวนและรอ 3 วินาทีแล้วอ่านค่า `mixer_tds_ppm` *(หมายเหตุ: คอลัมน์ `safe_ec_max_ppm` เก็บเป็นค่า TDS หน่วย ppm โดย TDS ppm = EC uS/cm x 0.5)*:
    - ถ้า `mixer_tds_ppm` <= `safe_ec_max_ppm` -> สถานะ = `'ready'` (อนุญาตให้ตักขึ้นโดรนได้ และล้างหัววัดด้วยน้ำสะอาด)
-   - ถ้า `mixer_tds_ppm` > `safe_ec_max_ppm` -> คำนวณปริมาตรน้ำเปล่าเติมเพิ่มเพื่อลดความเข้มข้นตามสมการเจือจาง C_1 V_1 = C_2 V_2:
-     V_{add\_water} = V_{current} x (\frac{EC_{current}}{EC_{safe}} - 1)
-     สั่งเปิดปั๊มน้ำเปล่า (ตัวที่ 4) เพิ่มเป็นเวลา t_{add} = V_{add\_water} / Q_{pump, water} (โดยระบบจะรีเซ็ตเวลาปั๊ม N, P, K เป็น `0` เพื่อให้ ESP32 #2 ดึงคำสั่งผ่าน `GET /api/mixer/command` ไปเติมเฉพาะน้ำเปล่า) แล้วกวนและอ่านค่า EC ซ้ำ
+   - ถ้า `mixer_tds_ppm` > `safe_ec_max_ppm` -> คำนวณปริมาตรน้ำเปล่าเติมเพิ่มโดยคำนึงถึงค่า TDS พื้นฐานของน้ำประปา (EC_{water} ~ 150\ ppm):
+     V_{add\_water} = V_{current} x \frac{EC_{current} - EC_{safe}}{EC_{safe} - EC_{water}}
+     สั่งเปิดปั๊มน้ำเปล่า (ตัวที่ 4) เพิ่มเป็นเวลา t_{add} = V_{add\_water} / Q_{pump, water} (โดยระบบจะรีเซ็ตเวลาปั๊ม N, P, K เป็น `0` เพื่อให้ ESP32 #2 ดึงคำสั่งผ่าน `GET /api/mixer/command` ไปเติมเฉพาะน้ำเปล่า) แล้วกวนและอ่านค่า TDS ซ้ำจนกว่าจะผ่านเกณฑ์
 
 ---
 
@@ -202,8 +202,8 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
 | `/api/soil/latest/<plot_id>` | `GET` | Web UI <- Flask | Resp `200`: `{"reading": {"moisture_pct": 42.5, "ec_us_cm": 310, "nitrogen_mg_kg": 15.0, "phosphorus_mg_kg": 5.0, "potassium_mg_kg": 60.0, "ph_value": 6.0, "source": "esp32_live", "recorded_at": "2026-11-16T09:30:00"}}` |
 | `/api/fermenter/telemetry` | `POST` | ESP32 #2 / Sim -> Flask | Req: `{"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "mixer_tds_ppm": 740, "simulated": false}`<br>Resp `200`: `{"ok": true, "is_ready": true}` |
 | `/api/fermenter/latest` | `GET` | Web UI <- Flask | Resp `200`: `{"telemetry": {"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "mixer_tds_ppm": 740, "is_ready": true, "recorded_at": "..."}}` |
-| `/api/mixer/calculate` | `POST` | Web UI -> Flask | Req: `{"plot_id": 1, "crop_profile_id": 2, "confirmed_area_m2": 100.0, "soil_type": "loam"}`<br>Resp `200`: `{"job_id": 5, "deficits_g": {"n": 195.0, "p2o5": 42.0, "k2o": 10.0}, "demo_volumes_ml": {"n": 63.2, "p": 13.6, "k": 3.2, "water": 120.0}, "pump_seconds": {"n": 12.6, "p": 2.7, "k": 0.6, "water": 24.0}, "ph_warning": null}` |
-| `/api/mixer/command` | `GET` | ESP32 #2 <- Flask | Resp `200` (มีงานค้าง): `{"has_command": true, "job_id": 5, "pump_n_ms": 12600, "pump_p_ms": 2700, "pump_k_ms": 0, "pump_water_ms": 24000}`<br>Resp `200` (ไม่มีงาน): `{"has_command": false, "job_id": null}` |
+| `/api/mixer/calculate` | `POST` | Web UI -> Flask | Req: `{"plot_id": 1, "mode": "sim", "crop_profile_id": 2, "confirmed_area_m2": 100.0, "soil_type": "loam"}`<br>Resp `200`: `{"job_id": 5, "deficits_g": {"n": 448.1, "p2o5": 72.7, "k2o": 0.0}, "demo_volumes_ml": {"n": 66.5, "p": 13.5, "k": 0.0, "water": 120.0}, "pump_seconds": {"n": 13.3, "p": 2.7, "k": 0.0, "water": 24.0}, "ph_warning": null}` |
+| `/api/mixer/command` | `GET` | ESP32 #2 <- Flask | Resp `200` (มีงานค้าง — แปลงวินาทีเป็นมิลลิวินาที x 1000): `{"has_command": true, "job_id": 5, "pump_n_ms": 13300, "pump_p_ms": 2700, "pump_k_ms": 0, "pump_water_ms": 24000}`<br>Resp `200` (ไม่มีงาน): `{"has_command": false, "job_id": null}` |
 | `/api/mixer/status` | `POST` | ESP32 #2 -> Flask | Req: `{"job_id": 5, "status": "ready", "final_tds_ppm": 780}`<br>Resp `200`: `{"ok": true, "status": "ready"}` |
 | `/api/mixer/check-ec` | `POST` | Web UI -> Flask | Req: `{"job_id": 5, "simulated": true}`<br>Resp `200`: `{"measured_tds_ppm": 780, "safe_ec_max_ppm": 1000, "needs_dilution": false, "add_water_ml": 0.0, "add_water_sec": 0.0, "message": "ค่าความเค็มอยู่ในเกณฑ์ปลอดภัย"}` |
 | `/api/drone/mission` | `POST` | Web UI -> Flask Drone | Req: `{"plot_id": 1, "mode": "survey_photo", "execution_mode": "SIMULATED", "waypoints_cm": [...]}`<br>Resp `200`: `{"ok": true, "execution_mode": "SIMULATED", "status": "completed", "message": "..."}` |

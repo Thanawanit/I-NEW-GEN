@@ -490,6 +490,7 @@ def create_app(
                 safe_ec_ppm=safe_ec,
                 current_vol_ml=current_vol,
                 q_water_ml_s=cfg.q_pump_water,
+                water_ec_ppm=cfg.water_tds_ppm,
             )
 
             new_status = "diluting" if result["needs_dilution"] else "ready"

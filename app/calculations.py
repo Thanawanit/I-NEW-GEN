@@ -248,8 +248,9 @@ def calculate_ec_dilution(
     safe_ec_ppm: float,
     current_vol_ml: float,
     q_water_ml_s: float,
+    water_ec_ppm: float = 150.0,
 ) -> dict[str, Any]:
-    """Evaluate TDS/EC safety and compute dilution water volume if over threshold."""
+    """Evaluate TDS/EC safety and compute dilution water volume accounting for tap water TDS."""
     if current_ec_ppm <= safe_ec_ppm or safe_ec_ppm <= 0:
         return {
             "measured_tds_ppm": round(current_ec_ppm, 1),
@@ -260,7 +261,18 @@ def calculate_ec_dilution(
             "message": "ค่าความเค็มอยู่ในเกณฑ์ปลอดภัย พร้อมนำไปใช้งานบนโดรน",
         }
 
-    add_water_ml = current_vol_ml * ((current_ec_ppm / safe_ec_ppm) - 1.0)
+    denom = safe_ec_ppm - water_ec_ppm
+    if denom <= 0:
+        return {
+            "measured_tds_ppm": round(current_ec_ppm, 1),
+            "safe_ec_max_ppm": round(safe_ec_ppm, 1),
+            "needs_dilution": True,
+            "add_water_ml": 0.0,
+            "add_water_sec": 0.0,
+            "message": "น้ำเปล่าที่ใช้เจือจางมีค่า TDS สูงกว่าเกณฑ์ปลอดภัยของพืช กรุณาใช้น้ำกรอง/น้ำสะอาด",
+        }
+
+    add_water_ml = current_vol_ml * ((current_ec_ppm - safe_ec_ppm) / denom)
     add_water_sec = add_water_ml / q_water_ml_s if q_water_ml_s > 0 else 0.0
     return {
         "measured_tds_ppm": round(current_ec_ppm, 1),
@@ -270,6 +282,6 @@ def calculate_ec_dilution(
         "add_water_sec": round(add_water_sec, 2),
         "message": (
             f"ค่าความเค็มเกินเกณฑ์ปลอดภัย ({current_ec_ppm:.0f} > {safe_ec_ppm:.0f} ppm) "
-            f"ต้องเติมน้ำเปล่าเจือจางเพิ่ม {add_water_ml:.1f} ml ({add_water_sec:.1f} วินาที)"
+            f"ต้องเติมน้ำเปล่าเจือจางเพิ่ม {add_water_ml:.1f} ml ({add_water_sec:.1f} วินาที) แล้วกวนวัดซ้ำ"
         ),
     }
