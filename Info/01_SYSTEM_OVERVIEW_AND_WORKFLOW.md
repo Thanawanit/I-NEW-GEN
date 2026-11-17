@@ -28,7 +28,7 @@
 |  - Map UI (Leaflet + Esri Satellite): Draw Polygon -> Area (m^2)      |
 |  - Crop Form: Crop Type / Variety / Growth Stage                      |
 |  - Image Analysis (OpenCV): ExG Green Index                           |
-|  - Fertilizer Calculator & Safety Logic (Delta N, P, K + EC Check)    |
+|  - Hybrid AI Calculator: Agronomic Balance + Random Forest (sklearn)  |
 +-------+-------------------------+-------------------------+-----------+
         | (USB Wi-Fi)             | (HTTP REST API)         | (HTTP REST API)
         v                         v                         v

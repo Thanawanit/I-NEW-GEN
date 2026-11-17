@@ -22,6 +22,7 @@ from calculations import (  # noqa: E402
     calculate_nutrient_deficit,
     project_latlng_to_waypoints,
 )
+from ml_model import get_or_train_rf_model, predict_rf_nutrient_deficit  # noqa: E402
 
 
 class TestCalculations(unittest.TestCase):
@@ -134,6 +135,28 @@ class TestCalculations(unittest.TestCase):
         self.assertTrue(high["needs_dilution"])
         self.assertAlmostEqual(high["add_water_ml"], 215.38, places=2)
         self.assertAlmostEqual(high["add_water_sec"], 43.08, places=2)
+
+    def test_random_forest_model_accuracy_and_prediction(self) -> None:
+        bundle = get_or_train_rf_model()
+        self.assertGreater(bundle.r2_score_val, 0.90)
+        self.assertEqual(bundle.sample_count, 1800)
+        self.assertEqual(len(bundle.feature_importances_pct), 9)
+
+        pred = predict_rf_nutrient_deficit(
+            crop_profile_id=2,
+            root_depth_m=0.25,
+            bulk_density_g_cm3=1.35,
+            measured_n_mg_kg=15.0,
+            measured_p_mg_kg=5.0,
+            measured_k_mg_kg=60.0,
+            ph_value=6.0,
+            moisture_pct=45.0,
+            exg_green_pct=55.0,
+            area_m2=100.0,
+        )
+        self.assertGreater(pred["rf_deficits_g"]["n"], 300.0)
+        self.assertGreater(pred["rf_deficits_g"]["p2o5"], 30.0)
+        self.assertAlmostEqual(sum(pred["rf_demo_volumes_ml"].values()), 200.0, places=1)
 
 
 class TestFlaskAPI(unittest.TestCase):
@@ -250,10 +273,18 @@ class TestFlaskAPI(unittest.TestCase):
                 "crop_profile_id": crops[1]["id"],
                 "confirmed_area_m2": 2400.0,
                 "soil_type": "loam",
+                "exg_green_pct": 52.0,
             },
         )
         self.assertEqual(calc_resp.status_code, 200)
-        job_id = calc_resp.get_json()["job_id"]
+        calc_json = calc_resp.get_json()
+        job_id = calc_json["job_id"]
+        self.assertIn("rf_prediction", calc_json)
+        self.assertGreater(calc_json["rf_prediction"]["r2_score"], 0.90)
+
+        ml_metrics_resp = self.client.get("/api/ml/metrics")
+        self.assertEqual(ml_metrics_resp.status_code, 200)
+        self.assertEqual(ml_metrics_resp.get_json()["training_samples"], 1800)
 
         # Real hardware ESP32 polling mode=live must NOT pick up SIM jobs
         live_cmd_resp = self.client.get("/api/mixer/command?mode=live")

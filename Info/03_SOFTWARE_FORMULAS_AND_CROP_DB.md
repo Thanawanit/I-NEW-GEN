@@ -9,7 +9,8 @@
 | เลเยอร์ | เทคโนโลยีที่กำหนด | หน้าที่หลัก |
 | :--- | :--- | :--- |
 | **Frontend (Map & UI)** | HTML5 + CSS + JavaScript + **Leaflet.js** + **Leaflet.draw** (`L.GeometryUtil.geodesicArea`) + **Esri World Imagery / OpenStreetMap** | วาด Polygon ขอบเขตแปลงบนแผนที่ภาพถ่ายดาวเทียมฟรี (**ไม่ต้องใช้บัตรเครดิต/API Key**), คำนวณพื้นที่ ($\text{m}^2$) แบบ Geodesic พร้อมช่องให้ผู้ใช้แก้ไขเลขเอง, ฟอร์มเลือกพืช/พันธุ์/ระยะเติบโต, และ Dashboard แสดงผลเรียลไทม์ |
-| **Backend Server** | **Python Flask** (`host='0.0.0.0'`, พอร์ต `5000`) | คำนวณสูตรปุ๋ยและระยะบิน, ประมวลผลภาพถ่ายโดรน, สื่อสารกับโดรนผ่าน USB Wi-Fi, และเปิด REST API ให้ ESP32 ส่งค่า/รับคำสั่ง |
+| **Backend Server** | **Python Flask** (`host='0.0.0.0'`, พอร์ต `5000`) | คำนวณสูตรปุ๋ยและระยะบิน, ประมวลผลภาพถ่ายโดรน, รันโมเดล Machine Learning, สื่อสารกับโดรนผ่าน USB Wi-Fi, และเปิด REST API ให้ ESP32 ส่งค่า/รับคำสั่ง |
+| **Machine Learning (AI)** | **scikit-learn (`RandomForestRegressor`)** | ประมวลผลตัวแปรตาราง 9 มิติ (ชนิดพืช/ระยะเติบโต, ความลึกราก, ความหนาแน่นดิน, N, P, K, pH, ความชื้นดิน, และดัชนีความเขียว `ExG %`) เพื่อพยากรณ์ความต้องการปุ๋ยแบบไม่เป็นเชิงเส้น พร้อมคำนวณค่า $R^2$, `MAE` และ `Feature Importance (%)` |
 | **Image Processing** | **OpenCV (`cv2`) + NumPy** | อ่านภาพถ่ายจากโดรนรอบที่ 1 (OpenCV อ่านสีเป็น **BGR** ต้องแปลงเป็น `int16` ก่อนคำนวณ $2G - R - B$ เพื่อป้องกัน `uint8` overflow) |
 | **Database** | **SQLite** | จัดเก็บข้อมูลแปลงเกษตร, เกณฑ์ธาตุอาหารพืช 3 ชนิด, ค่าตรวจดินสด, สถานะถังหมัก 3 ถัง และประวัติการสั่งผสม/บินพ่น |
 | **IoT Firmware** | Arduino C++ (สำหรับ **ESP32 #1** ชุดดิน และ **ESP32 #2** เครื่องหมัก/ผสม) | อ่านค่าเซนเซอร์และยิง HTTP POST/GET JSON เข้า Flask Server ผ่าน Wi-Fi วงเดียวกับโน้ตบุ๊ก |
@@ -173,6 +174,11 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
    - ถ้า $\text{pH} < \text{ph\_min}$ $\rightarrow$ แจ้งเตือน `"ดินเป็นกรดเกินเกณฑ์ พืชดูดซึมธาตุได้น้อย ควรปรับสภาพด้วยปูนขาว/โดโลไมต์ก่อนใส่ปุ๋ย"`
    - ถ้า $\text{pH} > \text{ph\_max}$ $\rightarrow$ แจ้งเตือน `"ดินเป็นด่างเกินเกณฑ์ ควรปรับสภาพด้วยอินทรียวัตถุ/กำมะถัน"`
 
+5. **การพยากรณ์ร่วมด้วยโมเดล Machine Learning (`RandomForestRegressor` — `ml_model.py`):**
+   - เพื่อจำลองความสัมพันธ์แบบไม่เป็นเชิงเส้น (Non-linear Interactions) ระหว่างสภาพดินกับความสมบูรณ์ของทรงพุ่มตามเอกสารอ้างอิง (`Breiman, 2001`; `Pedregosa et al., 2011`) ระบบใช้ `RandomForestRegressor(n_estimators=120, max_depth=12)` ที่ฝึกสอนด้วยชุดข้อมูลจำลองทางปฐพีวิทยา 1,800 ตัวอย่าง (ครอบคลุมพืช 3 ชนิด × 3 ระยะเติบโต, 80/20 Train-Test Split)
+   - **ตัวแปรนำเข้า 9 ตัว (Features $X$):** `crop_profile_id`, `root_depth_m`, `bulk_density_g_cm3`, `soil_n_mg_kg`, `soil_p_mg_kg`, `soil_k_mg_kg`, `ph_value` (ผลของการตรึงธาตุ P เมื่อดินเป็นกรด/ด่าง), `moisture_pct` (ประสิทธิภาพการแพร่ของธาตุอาหารตามความชื้นดิน), และ `exg_green_pct` (ดัชนีความเขียวของใบจากภาพโดรนรอบที่ 1)
+   - **ผลลัพธ์ (Targets $Y$):** พยากรณ์ปริมาณธาตุอาหารที่ขาด ($\text{rf\_deficits\_g}$) และปริมาตรน้ำหมักย่อสเกล ($\text{rf\_demo\_volumes\_ml}$) แสดงผลคู่กับสูตรสมดุลมวลมาตรฐาน พร้อมค่าความแม่นยำ ($R^2 \approx 0.96$, $\text{MAE}$) และลำดับความสำคัญของตัวแปร (`feature_importances_pct`) บนหน้าเว็บแดชบอร์ด
+
 ### สูตรที่ 5: คำนวณปริมาตรน้ำหมัก, ย่อสเกล Demo และเวลาเปิดปั๊ม (Pump Runtime)
 
 1. **ปริมาตรน้ำหมักที่ต้องการจริงตามทฤษฎี** (เมื่อความเข้มข้นน้ำหมักแต่ละถังคือ $C_{\text{bio}, i}$ หน่วย $\text{mg/ml}$ ของ $\text{N}, \text{P}_2\text{O}_5, \text{K}_2\text{O}$ จากค่า Placeholder ใน `config.py` — ตั้งเท่ากัน `2.0 mg/ml` ทั้ง 3 ถังเพื่อรักษาสัดส่วน $\Delta M$ จนกว่าคนที่ 4 จะวัดค่าจริง):
@@ -217,6 +223,7 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
 | `/api/mixer/check-ec` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `{"job_id": 5, "mode": "sim", "simulated": true}`<br>**Resp `200`:** `{"measured_tds_ppm": 780, "safe_ec_max_ppm": 1000, "needs_dilution": false, "add_water_ml": 0.0, "add_water_sec": 0.0, "message": "ค่าความเค็มอยู่ในเกณฑ์ปลอดภัย"}` |
 | `/api/drone/mission` | `POST` | Web UI $\rightarrow$ Flask Drone | **Req:** `{"plot_id": 1, "job_id": 5, "mode": "survey_photo", "execution_mode": "SIMULATED", "waypoints_cm": [...]}` *(`mode` รับค่า `"survey_photo"` สำหรับบินสำรวจรอบที่ 1 หรือ `"spray_fertilizer"` สำหรับบินพ่นปุ๋ยรอบที่ 2)*<br>**Resp `200`:** `{"ok": true, "execution_mode": "SIMULATED", "mode": "survey_photo", "status": "completed", "message": "..."}` |
 | `/api/drone/analyze-image` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `multipart/form-data` (`image` file + `plot_id` + `mode`)<br>**Resp `200`:** `{"green_coverage_pct": 64.2, "mask_image_url": "/static/uploads/mask_sim_1.png"}` |
+| `/api/ml/metrics` | `GET` | Web UI $\leftarrow$ Flask | **Resp `200`:** `{"model_name": "RandomForestRegressor (scikit-learn)", "n_estimators": 120, "training_samples": 1800, "r2_score": 0.9612, "mae_g_m2": 0.142, "feature_importances_pct": {...}}` |
 | `/api/config` | `GET`/`POST` | Web UI $\leftrightarrow$ Flask | **JSON:** `{"q_pump_n": 5.0, "q_pump_p": 5.0, "q_pump_k": 5.0, "q_pump_water": 5.0, "c_bio_n": 2.0, "c_bio_p2o5": 2.0, "c_bio_k2o": 2.0, "water_tds_ppm": 150.0, "table_width_cm": 40.0, "table_height_cm": 60.0}` |
 
 ---

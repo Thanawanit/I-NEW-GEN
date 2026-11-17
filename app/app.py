@@ -30,6 +30,11 @@ from config import (  # noqa: E402
     update_config,
 )
 from database import get_connection, init_db  # noqa: E402
+from ml_model import (  # noqa: E402
+    FEATURE_LABELS_TH,
+    get_or_train_rf_model,
+    predict_rf_nutrient_deficit,
+)
 
 
 def _normalize_mode(value: Any, simulated_flag: Any = False) -> str:
@@ -341,6 +346,8 @@ def create_app(
             p_mg = float(soil_row["phosphorus_mg_kg"])
             k_mg = float(soil_row["potassium_mg_kg"])
             ph_val = float(soil_row["ph_value"]) if soil_row["ph_value"] is not None else None
+            moist_val = float(soil_row["moisture_pct"]) if soil_row["moisture_pct"] is not None else None
+            exg_val = float(data["exg_green_pct"]) if data.get("exg_green_pct") is not None else None
 
             deficit_res = calculate_nutrient_deficit(
                 measured_n_mg_kg=n_mg,
@@ -358,6 +365,24 @@ def create_app(
                 n_avail_factor=cfg.n_avail_factor,
                 p_avail_factor=cfg.p_avail_factor,
                 k_avail_factor=cfg.k_avail_factor,
+            )
+
+            rf_res = predict_rf_nutrient_deficit(
+                crop_profile_id=int(crop_profile_id),
+                root_depth_m=float(profile["root_depth_m"]),
+                bulk_density_g_cm3=bulk_density,
+                measured_n_mg_kg=n_mg,
+                measured_p_mg_kg=p_mg,
+                measured_k_mg_kg=k_mg,
+                ph_value=ph_val,
+                moisture_pct=moist_val,
+                exg_green_pct=exg_val,
+                area_m2=float(confirmed_area),
+                c_bio_n=cfg.c_bio_n,
+                c_bio_p2o5=cfg.c_bio_p2o5,
+                c_bio_k2o=cfg.c_bio_k2o,
+                demo_bio_ml=cfg.demo_bio_ml,
+                demo_batch_ml=cfg.demo_batch_ml,
             )
 
             mixing_res = calculate_mixing_plan(
@@ -414,6 +439,22 @@ def create_app(
                 "pump_seconds": mixing_res["pump_seconds"],
                 "ph_warning": deficit_res["ph_warning"],
                 "all_sufficient": mixing_res["all_sufficient"],
+                "rf_prediction": rf_res,
+            }
+        )
+
+    @flask_app.get("/api/ml/metrics")
+    def get_ml_metrics() -> Any:
+        bundle = get_or_train_rf_model()
+        return jsonify(
+            {
+                "model_name": "RandomForestRegressor (scikit-learn)",
+                "n_estimators": bundle.n_estimators,
+                "training_samples": bundle.sample_count,
+                "r2_score": bundle.r2_score_val,
+                "mae_g_m2": bundle.mae_g_m2,
+                "feature_importances_pct": bundle.feature_importances_pct,
+                "feature_labels_th": FEATURE_LABELS_TH,
             }
         )
 
@@ -421,6 +462,7 @@ def create_app(
     def get_mixer_command() -> Any:
         # Real ESP32 hardware always polls mode='live' so simulated jobs never fire real pumps
         mode = _normalize_mode(request.args.get("mode", "live"))
+        is_peek = str(request.args.get("peek", "")).lower() in {"1", "true", "yes"}
         with get_connection(db_path) as conn:
             row = conn.execute(
                 """
@@ -432,9 +474,10 @@ def create_app(
             ).fetchone()
             if not row:
                 return jsonify({"has_command": False, "mode": mode, "job_id": None})
-            # Transition immediately to 'mixing' so repeated polling never re-runs the same command
-            conn.execute("UPDATE mixing_jobs SET status = 'mixing' WHERE id = ?", (row["id"],))
-            conn.commit()
+            if not is_peek:
+                # Transition immediately to 'mixing' so repeated polling never re-runs the same command
+                conn.execute("UPDATE mixing_jobs SET status = 'mixing' WHERE id = ?", (row["id"],))
+                conn.commit()
 
         return jsonify(
             {

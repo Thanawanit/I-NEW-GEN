@@ -57,6 +57,7 @@ function createInitialModeState() {
       volumes: null,
       pumpSec: null,
       phWarning: null,
+      rfPrediction: null,
       ecNotice: "",
       ecNoticeType: "",
       provenance: "NO DATA",
@@ -301,6 +302,25 @@ function renderCurrentModeUI() {
   document.getElementById("sec-p-val").textContent = s.mixer.pumpSec ? `${formatNum(s.mixer.pumpSec.p, 1)} s` : "— s";
   document.getElementById("sec-k-val").textContent = s.mixer.pumpSec ? `${formatNum(s.mixer.pumpSec.k, 1)} s` : "— s";
   document.getElementById("sec-w-val").textContent = s.mixer.pumpSec ? `${formatNum(s.mixer.pumpSec.water, 1)} s` : "— s";
+
+  const rf = s.mixer.rfPrediction;
+  document.getElementById("rf-metrics-val").textContent = rf
+    ? `R² = ${formatNum(rf.r2_score, 4)} | MAE = ${formatNum(rf.mae_g_m2, 3)} g/m² (${rf.n_estimators} trees)`
+    : "—";
+  document.getElementById("rf-deficits-val").textContent =
+    rf && rf.rf_deficits_g
+      ? `${formatNum(rf.rf_deficits_g.n, 1)} / ${formatNum(rf.rf_deficits_g.p2o5, 1)} / ${formatNum(rf.rf_deficits_g.k2o, 1)} g`
+      : "— g";
+  if (rf && rf.feature_importances_pct) {
+    const top3 = Object.entries(rf.feature_importances_pct)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([k, v]) => `${k} (${formatNum(v, 1)}%)`)
+      .join(", ");
+    document.getElementById("rf-top-features-val").textContent = top3;
+  } else {
+    document.getElementById("rf-top-features-val").textContent = "—";
+  }
 
   renderNotice("ph-warning-box", s.mixer.phWarning || "", s.mixer.phWarning ? "warn" : "");
   renderNotice("ec-check-box", s.mixer.ecNotice, s.mixer.ecNoticeType);
@@ -837,6 +857,7 @@ function bindWorkspace4() {
         crop_profile_id: s.crop.profileId,
         confirmed_area_m2: s.plot.confirmedAreaM2,
         soil_type: s.crop.soilType,
+        exg_green_pct: s.survey.greenPct,
       }),
     });
     if (!res) return;
@@ -852,6 +873,7 @@ function bindWorkspace4() {
     s.mixer.volumes = res.demo_volumes_ml;
     s.mixer.pumpSec = res.pump_seconds;
     s.mixer.phWarning = res.ph_warning || null;
+    s.mixer.rfPrediction = res.rf_prediction || null;
     s.mixer.provenance = "CALCULATED";
     s.mixer.ecNotice = "";
     renderCurrentModeUI();
@@ -859,7 +881,7 @@ function bindWorkspace4() {
 
   document.getElementById("btn-send-mixer-live").addEventListener("click", async () => {
     const s = currentModeState();
-    const res = await apiRequest("/api/mixer/command?mode=live");
+    const res = await apiRequest("/api/mixer/command?mode=live&peek=1");
     if (!res || res.__error || !res.has_command) {
       s.mixer.ecNotice = "ยังไม่มีคำสั่งผสมปุ๋ยในคิวของโหมดอุปกรณ์จริง (กรุณากดคำนวณสูตรก่อน)";
       s.mixer.ecNoticeType = "danger";
