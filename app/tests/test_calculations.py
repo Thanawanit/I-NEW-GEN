@@ -139,7 +139,7 @@ class TestCalculations(unittest.TestCase):
     def test_random_forest_model_accuracy_and_prediction(self) -> None:
         bundle = get_or_train_rf_model()
         self.assertGreater(bundle.r2_score_val, 0.90)
-        self.assertEqual(bundle.sample_count, 1800)
+        self.assertEqual(bundle.sample_count, 19800)
         self.assertEqual(len(bundle.feature_importances_pct), 9)
 
         pred = predict_rf_nutrient_deficit(
@@ -284,7 +284,7 @@ class TestFlaskAPI(unittest.TestCase):
 
         ml_metrics_resp = self.client.get("/api/ml/metrics")
         self.assertEqual(ml_metrics_resp.status_code, 200)
-        self.assertEqual(ml_metrics_resp.get_json()["training_samples"], 1800)
+        self.assertEqual(ml_metrics_resp.get_json()["training_samples"], 19800)
 
         # Real hardware ESP32 polling mode=live must NOT pick up SIM jobs
         live_cmd_resp = self.client.get("/api/mixer/command?mode=live")

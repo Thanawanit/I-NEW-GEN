@@ -7,15 +7,16 @@ Implements the Machine Learning component referenced in the project specificatio
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
+import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, r2_score
-from sklearn.model_selection import train_test_split
 
 from calculations import K_TO_K2O_FACTOR, P_TO_P2O5_FACTOR
-from database import SEED_CROP_PROFILES
+
+MODEL_PATH = Path(__file__).resolve().parent / "data" / "rf_fertilizer_model.joblib"
 
 FEATURE_NAMES: list[str] = [
     "crop_profile_id",
@@ -118,81 +119,27 @@ def _compute_agronomic_nonlinear_targets(
 
 
 def get_or_train_rf_model() -> RFModelBundle:
-    """Build or return cached RandomForestRegressor trained on DOA/ARDA agronomic domain samples."""
+    """Load the persisted RandomForest from joblib; train and save it first if the file is missing."""
     global _CACHED_BUNDLE
     if _CACHED_BUNDLE is not None:
         return _CACHED_BUNDLE
 
-    rng = np.random.default_rng(42)
-    samples_per_profile = 200
-    x_rows: list[list[float]] = []
-    y_rows: list[list[float]] = []
+    if not MODEL_PATH.exists():
+        # Lazy import: train_rf imports this module at top level.
+        from train_rf import train_and_save
 
-    bulk_choices = [1.25, 1.35, 1.45]
+        train_and_save()
 
-    for idx, prof in enumerate(SEED_CROP_PROFILES, start=1):
-        _, _, _, root_depth, t_n, t_p2o5, t_k2o, ph_min, ph_max, _ = prof
-        for _ in range(samples_per_profile):
-            bd = float(rng.choice(bulk_choices))
-            s_n = float(rng.uniform(2.0, 45.0))
-            s_p = float(rng.uniform(2.0, 50.0))
-            s_k = float(rng.uniform(15.0, 130.0))
-            ph = float(rng.uniform(4.3, 7.8))
-            moist = float(rng.uniform(15.0, 85.0))
-            exg = float(rng.uniform(15.0, 85.0))
-
-            dn, dp, dk = _compute_agronomic_nonlinear_targets(
-                profile_id=idx,
-                root_depth_m=float(root_depth),
-                target_n=float(t_n),
-                target_p2o5=float(t_p2o5),
-                target_k2o=float(t_k2o),
-                ph_min=float(ph_min),
-                ph_max=float(ph_max),
-                bulk_density=bd,
-                soil_n=s_n,
-                soil_p=s_p,
-                soil_k=s_k,
-                ph_val=ph,
-                moisture_pct=moist,
-                exg_pct=exg,
-            )
-            x_rows.append([float(idx), float(root_depth), bd, s_n, s_p, s_k, ph, moist, exg])
-            y_rows.append([dn, dp, dk])
-
-    x_arr = np.array(x_rows, dtype=np.float64)
-    y_arr = np.array(y_rows, dtype=np.float64)
-
-    x_train, x_test, y_train, y_test = train_test_split(
-        x_arr, y_arr, test_size=0.20, random_state=42
-    )
-
-    rf = RandomForestRegressor(
-        n_estimators=120,
-        max_depth=12,
-        min_samples_leaf=2,
-        random_state=42,
-        n_jobs=1,
-    )
-    rf.fit(x_train, y_train)
-
-    y_pred = rf.predict(x_test)
-    r2_val = float(r2_score(y_test, y_pred))
-    mae_val = float(mean_absolute_error(y_test, y_pred))
-
-    raw_imp = rf.feature_importances_
-    imp_pct = {
-        name: round(float(val) * 100.0, 2)
-        for name, val in zip(FEATURE_NAMES, raw_imp)
-    }
-
+    payload = joblib.load(MODEL_PATH)
+    report = payload["report"]
+    holdout = report["holdout_80_20"]["overall"]
     _CACHED_BUNDLE = RFModelBundle(
-        model=rf,
-        r2_score_val=round(r2_val, 4),
-        mae_g_m2=round(mae_val, 4),
-        sample_count=int(len(x_rows)),
-        n_estimators=120,
-        feature_importances_pct=imp_pct,
+        model=payload["model"],
+        r2_score_val=round(holdout["r2"], 4),
+        mae_g_m2=round(holdout["mae"], 4),
+        sample_count=int(report["dataset"]["total_samples"]),
+        n_estimators=int(report["hyperparameters"]["n_estimators"]),
+        feature_importances_pct=report["feature_importance_pct"],
     )
     return _CACHED_BUNDLE
 

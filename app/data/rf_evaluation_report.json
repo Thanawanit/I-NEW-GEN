@@ -1,0 +1,110 @@
+{
+  "model": "RandomForestRegressor (scikit-learn)",
+  "hyperparameters": {
+    "n_estimators": 120,
+    "max_depth": 12,
+    "min_samples_leaf": 2,
+    "random_state": 42
+  },
+  "dataset": {
+    "source_url": "https://raw.githubusercontent.com/Gladiator07/Harvestify/master/Data-processed/crop_recommendation.csv",
+    "open_rows_used": 2200,
+    "total_samples": 19800,
+    "train_samples": 15840,
+    "test_samples": 3960,
+    "pairing_note": "All 2,200 real soil states are paired with each of the 9 crop profiles; one random bulk density per pair.",
+    "targets_note": "Targets are computed by the agronomic non-linear formula, not field measurements."
+  },
+  "holdout_80_20": {
+    "N": {
+      "r2": 0.9957907150545909,
+      "rmse": 0.13093537159393,
+      "mae": 0.07857890047753807
+    },
+    "P2O5": {
+      "r2": 0.9928333536539053,
+      "rmse": 0.021344313587198682,
+      "mae": 0.005440548166671687
+    },
+    "K2O": {
+      "r2": 0.998675432306726,
+      "rmse": 0.10278177844681571,
+      "mae": 0.060143687316069706
+    },
+    "overall": {
+      "r2": 0.9957665003384074,
+      "rmse": 0.09689125388399702,
+      "mae": 0.048054378653426516
+    }
+  },
+  "cross_validation_5fold": {
+    "N": {
+      "r2": {
+        "mean": 0.9958029061396448,
+        "std": 0.0001374884362569274
+      },
+      "rmse": {
+        "mean": 0.13127901574040143,
+        "std": 0.0023228082621578445
+      },
+      "mae": {
+        "mean": 0.07742151210372415,
+        "std": 0.0009804154327121733
+      }
+    },
+    "P2O5": {
+      "r2": {
+        "mean": 0.9922992447176708,
+        "std": 0.0006096794475977592
+      },
+      "rmse": {
+        "mean": 0.022175288729995628,
+        "std": 0.000702443262031981
+      },
+      "mae": {
+        "mean": 0.005724970892466657,
+        "std": 0.0001556621229117684
+      }
+    },
+    "K2O": {
+      "r2": {
+        "mean": 0.9987706656520736,
+        "std": 5.1848914722375436e-05
+      },
+      "rmse": {
+        "mean": 0.09918660439857659,
+        "std": 0.0021200744653528886
+      },
+      "mae": {
+        "mean": 0.05977328326870842,
+        "std": 0.00046185342171745775
+      }
+    },
+    "overall": {
+      "r2": {
+        "mean": 0.9956242721697967,
+        "std": 0.00023525066247187727
+      },
+      "rmse": {
+        "mean": 0.09585847867746576,
+        "std": 0.0016068264343409456
+      },
+      "mae": {
+        "mean": 0.0476399220882998,
+        "std": 0.0004529167579544277
+      }
+    }
+  },
+  "feature_importance_pct": {
+    "crop_profile_id": 49.95,
+    "root_depth_m": 12.79,
+    "bulk_density_g_cm3": 0.18,
+    "soil_n_mg_kg": 11.22,
+    "soil_p_mg_kg": 23.38,
+    "soil_k_mg_kg": 2.07,
+    "ph_value": 0.18,
+    "moisture_pct": 0.14,
+    "exg_green_pct": 0.09
+  },
+  "training_seconds": 16.3
+}

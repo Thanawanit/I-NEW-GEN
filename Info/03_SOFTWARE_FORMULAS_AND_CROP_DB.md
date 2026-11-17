@@ -175,7 +175,7 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
    - ถ้า $\text{pH} > \text{ph\_max}$ $\rightarrow$ แจ้งเตือน `"ดินเป็นด่างเกินเกณฑ์ ควรปรับสภาพด้วยอินทรียวัตถุ/กำมะถัน"`
 
 5. **การพยากรณ์ร่วมด้วยโมเดล Machine Learning (`RandomForestRegressor` — `ml_model.py`):**
-   - เพื่อจำลองความสัมพันธ์แบบไม่เป็นเชิงเส้น (Non-linear Interactions) ระหว่างสภาพดินกับความสมบูรณ์ของทรงพุ่มตามเอกสารอ้างอิง (`Breiman, 2001`; `Pedregosa et al., 2011`) ระบบใช้ `RandomForestRegressor(n_estimators=120, max_depth=12)` ที่ฝึกสอนด้วยชุดข้อมูลจำลองทางปฐพีวิทยา 1,800 ตัวอย่าง (ครอบคลุมพืช 3 ชนิด × 3 ระยะเติบโต, 80/20 Train-Test Split)
+   - เพื่อจำลองความสัมพันธ์แบบไม่เป็นเชิงเส้น (Non-linear Interactions) ระหว่างสภาพดินกับความสมบูรณ์ของทรงพุ่มตามเอกสารอ้างอิง (`Breiman, 2001`; `Pedregosa et al., 2011`) ระบบใช้ `RandomForestRegressor(n_estimators=120, max_depth=12)` ที่ฝึกสอนด้วยชุดข้อมูล Open-Source จริง + สูตรปฐพีวิทยา 19,800 ตัวอย่าง (ดูหัวข้อ 7) (ครอบคลุมพืช 3 ชนิด × 3 ระยะเติบโต, 80/20 Train-Test Split)
    - **ตัวแปรนำเข้า 9 ตัว (Features $X$):** `crop_profile_id`, `root_depth_m`, `bulk_density_g_cm3`, `soil_n_mg_kg`, `soil_p_mg_kg`, `soil_k_mg_kg`, `ph_value` (ผลของการตรึงธาตุ P เมื่อดินเป็นกรด/ด่าง), `moisture_pct` (ประสิทธิภาพการแพร่ของธาตุอาหารตามความชื้นดิน), และ `exg_green_pct` (ดัชนีความเขียวของใบจากภาพโดรนรอบที่ 1)
    - **ผลลัพธ์ (Targets $Y$):** พยากรณ์ปริมาณธาตุอาหารที่ขาด ($\text{rf\_deficits\_g}$) และปริมาตรน้ำหมักย่อสเกล ($\text{rf\_demo\_volumes\_ml}$) แสดงผลคู่กับสูตรสมดุลมวลมาตรฐาน พร้อมค่าความแม่นยำ ($R^2 \approx 0.96$, $\text{MAE}$) และลำดับความสำคัญของตัวแปร (`feature_importances_pct`) บนหน้าเว็บแดชบอร์ด
 
@@ -223,7 +223,7 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
 | `/api/mixer/check-ec` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `{"job_id": 5, "mode": "sim", "simulated": true}`<br>**Resp `200`:** `{"measured_tds_ppm": 780, "safe_ec_max_ppm": 1000, "needs_dilution": false, "add_water_ml": 0.0, "add_water_sec": 0.0, "message": "ค่าความเค็มอยู่ในเกณฑ์ปลอดภัย"}` |
 | `/api/drone/mission` | `POST` | Web UI $\rightarrow$ Flask Drone | **Req:** `{"plot_id": 1, "job_id": 5, "mode": "survey_photo", "execution_mode": "SIMULATED", "waypoints_cm": [...]}` *(`mode` รับค่า `"survey_photo"` สำหรับบินสำรวจรอบที่ 1 หรือ `"spray_fertilizer"` สำหรับบินพ่นปุ๋ยรอบที่ 2)*<br>**Resp `200`:** `{"ok": true, "execution_mode": "SIMULATED", "mode": "survey_photo", "status": "completed", "message": "..."}` |
 | `/api/drone/analyze-image` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `multipart/form-data` (`image` file + `plot_id` + `mode`)<br>**Resp `200`:** `{"green_coverage_pct": 64.2, "mask_image_url": "/static/uploads/mask_sim_1.png"}` |
-| `/api/ml/metrics` | `GET` | Web UI $\leftarrow$ Flask | **Resp `200`:** `{"model_name": "RandomForestRegressor (scikit-learn)", "n_estimators": 120, "training_samples": 1800, "r2_score": 0.9612, "mae_g_m2": 0.142, "feature_importances_pct": {...}}` |
+| `/api/ml/metrics` | `GET` | Web UI $\leftarrow$ Flask | **Resp `200`:** `{"model_name": "RandomForestRegressor (scikit-learn)", "n_estimators": 120, "training_samples": 19800, "r2_score": 0.9612, "mae_g_m2": 0.142, "feature_importances_pct": {...}}` |
 | `/api/config` | `GET`/`POST` | Web UI $\leftrightarrow$ Flask | **JSON:** `{"q_pump_n": 5.0, "q_pump_p": 5.0, "q_pump_k": 5.0, "q_pump_water": 5.0, "c_bio_n": 2.0, "c_bio_p2o5": 2.0, "c_bio_k2o": 2.0, "water_tds_ppm": 150.0, "table_width_cm": 40.0, "table_height_cm": 60.0}` |
 
 ---
@@ -248,3 +248,39 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
 4. `ready` — ผ่านเกณฑ์ EC ปลอดภัย พร้อมตักน้ำปุ๋ยใส่ตลับพ่นโดรน
 5. `sprayed` — โดรนรอบที่ 2 ปฏิบัติภารกิจพ่นปุ๋ยเสร็จสิ้น
 
+
+## 7. ที่มาของชุดข้อมูล Open-Source และผลการประเมินโมเดล Random Forest
+
+**แหล่งข้อมูล:** Crop Recommendation Dataset (Kaggle, Atharva Ingle; ไฟล์สำเนา: https://raw.githubusercontent.com/Gladiator07/Harvestify/master/Data-processed/crop_recommendation.csv) จำนวน 2,200 แถว, 22 ชนิดพืช ค่าที่ใช้: N, P, K (kg/ha → mg/kg หาร 2.0 สำหรับชั้นดิน 15 ซม.), pH, humidity (ใช้เป็นตัวแทน `moisture_pct`)
+- ชุดข้อมูลไม่มี groundnut (ถั่วลิสง) แถวดินจริงทั้ง 2,200 แถว (รวม maize, coffee และพืชตระกูลถั่ว) จึงถูกจับคู่กับโปรไฟล์ทั้ง 9 รายการ เพราะแถวของพืชชนิดเดียวครอบคลุมช่วง N/P/K แคบเกินไป โมเดลจะพยากรณ์นอกช่วงไม่ได้
+- ลิงก์ HSE (`AnnSenina/python_hse_2024`) ที่ระบุไว้แรกเริ่ม ไม่มีคอลัมน์ N/P/K และไม่มีกาแฟ จึงไม่สามารถใช้ได้
+- ความหนาแน่นดิน (1.25/1.35/1.45) และ `exg_green_pct` (สุ่มตามระยะการเจริญเติบโต) เป็นค่าจำลอง ไม่ใช่ข้อมูลจริง
+- **Target (`deficit_*_g_m2`) คำนวณจากสูตรปฐพีวิทยาไม่เป็นเชิงเส้น (ผลกระทบ pH ต่อ P, ความชื้นต่อการแพร่, ExG ต่อ N) กับเกณฑ์กรมวิชาการเกษตร (2565) ไม่ใช่ค่าวัดภาคสนาม** ดังนั้น R² สูงบ่งชี้ว่าโมเดลเรียนรู้สูตรได้ ไม่ใช่ความแม่นยำเทียบแปลงจริง
+
+**ชุดข้อมูลที่เตรียมแล้ว:** `app/data/agronomic_rf_dataset.csv` (19,800 ตัวอย่าง = 2,200 แถวดินจริง × 9 โปรไฟล์พืช, สุ่มความหนาแน่นดิน 1 ค่าต่อคู่; ระบุ `source_row_id`, `source_label`)
+**สคริปต์:** `app/train_rf.py` (รันซ้ำได้) | **โมเดล:** `app/data/rf_fertilizer_model.joblib` | **รายงาน:** `app/data/rf_evaluation_report.json`
+
+**วิธีประเมิน:** แบ่ง 80:20 และ 5-Fold GroupKFold โดยจัดกลุ่มตามแถวข้อมูลต้นทาง (ป้องกัน data leakage จากแถวดินเดียวกันที่ปรากฏใน 9 โปรไฟล์) | Train 15,840 / Test 3,960
+
+| Target | R² (hold-out) | RMSE (g/m²) | MAE (g/m²) | R² (5-fold CV) | RMSE (CV) | MAE (CV) |
+|---|---|---|---|---|---|---|
+| N | 0.9958 | 0.1309 | 0.0786 | 0.9958 ± 0.0001 | 0.1313 | 0.0774 |
+| P2O5 | 0.9928 | 0.0213 | 0.0054 | 0.9923 ± 0.0006 | 0.0222 | 0.0057 |
+| K2O | 0.9987 | 0.1028 | 0.0601 | 0.9988 ± 0.0001 | 0.0992 | 0.0598 |
+| overall | 0.9958 | 0.0969 | 0.0481 | 0.9956 ± 0.0002 | 0.0959 | 0.0476 |
+
+**Feature Importance (%):**
+
+| Feature | % |
+|---|---|
+| `crop_profile_id` | 49.95 |
+| `soil_p_mg_kg` | 23.38 |
+| `root_depth_m` | 12.79 |
+| `soil_n_mg_kg` | 11.22 |
+| `soil_k_mg_kg` | 2.07 |
+| `bulk_density_g_cm3` | 0.18 |
+| `ph_value` | 0.18 |
+| `moisture_pct` | 0.14 |
+| `exg_green_pct` | 0.09 |
+
+หมายเหตุ: Feature Importance ของ pH/ความชื้น/ExG ต่ำ (<0.2%) เพราะโมเดลขึ้นกับชนิดพืช/ระยะ รากพืช และ N/P ของดินเป็นหลัก ผลของ pH/ความชื้น/ExG เป็นตัวคูณขนาดเล็ก (ปรับ ±8-40%) เมื่อเทียบกับเป้าหมายธาตุอาหาร
