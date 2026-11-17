@@ -56,12 +56,12 @@ class AppConfig:
         }
     )
 
-    # LDD Soil Test Kit qualitative level -> baseline mg/kg mapping
+    # LDD Soil Test Kit qualitative level -> baseline mg/kg mapping (supports both 3-level and 5-level LDD scales)
     ldd_level_to_mg_kg: dict[str, dict[str, float]] = field(
         default_factory=lambda: {
-            "n": {"low": 5.0, "medium": 15.0, "high": 30.0},
-            "p": {"low": 5.0, "medium": 15.0, "high": 30.0},
-            "k": {"low": 30.0, "medium": 60.0, "high": 100.0},
+            "n": {"very_low": 2.5, "low": 5.0, "medium": 15.0, "high": 30.0, "very_high": 45.0},
+            "p": {"very_low": 2.0, "low": 5.0, "medium": 15.0, "high": 30.0, "very_high": 50.0},
+            "k": {"very_low": 20.0, "low": 30.0, "medium": 60.0, "high": 100.0, "very_high": 130.0},
         }
     )
 

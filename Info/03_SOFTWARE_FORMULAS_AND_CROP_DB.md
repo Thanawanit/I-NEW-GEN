@@ -1,4 +1,4 @@
-# Software Architecture, Mathematical Formulas & Crop Database Spec
+# Software Architecture, Mathematical Formulas & Crop Database Spec — `v1.4`
 
 > **วัตถุประสงค์เอกสาร:** กำหนดสถาปัตยกรรมซอฟต์แวร์ โครงสร้างฐานข้อมูลพืช/พันธุ์/ระยะการเจริญเติบโต ชุดสูตรคำนวณทางคณิตศาสตร์ทั้งหมด (พร้อมตัวอย่างการแทนค่า) และ API Contract สำหรับเชื่อมต่อเว็บ, โดรน และบอร์ด ESP32
 
@@ -49,7 +49,7 @@ CREATE TABLE plots (
     FOREIGN KEY (crop_profile_id) REFERENCES crop_profiles(id)
 );
 
--- 3. ตารางบันทึกค่าดิน (จาก ESP32 #1 + ชุดตรวจดิน)
+-- 3. ตารางบันทึกค่าดิน (จาก ESP32 #1 + ชุดตรวจดิน; ระบบรวมค่าความชื้นล่าสุดกับค่า NPK ล่าสุดของ plot_id เดียวกันให้อัตโนมัติ)
 CREATE TABLE soil_readings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     plot_id INTEGER NOT NULL,
@@ -59,7 +59,8 @@ CREATE TABLE soil_readings (
     ph_value REAL,
     moisture_pct REAL,
     ec_us_cm REAL,
-    source TEXT NOT NULL,             -- 'esp32_live' หรือ 'manual_testkit'
+    source TEXT NOT NULL,             -- 'esp32_live', 'manual_testkit', หรือ 'simulated'
+    mode TEXT NOT NULL DEFAULT 'live',-- 'live' หรือ 'sim' (แยกฐานข้อมูล 100%)
     recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -69,7 +70,7 @@ CREATE TABLE fermenter_logs (
     temp_n_c REAL,
     temp_p_c REAL,
     temp_k_c REAL,
-    temp_mixer_c REAL,                -- อุณหภูมิน้ำในถังผสม (ถ้ามี DS18B20 ตัวที่ 4)
+    temp_mixer_c REAL,                -- คอลัมน์ใน SQLite (เมื่อส่งออก JSON API จะแปลงชื่อเป็น temp_n, temp_p, temp_k, temp_mixer)
     mixer_tds_ppm REAL,
     is_ready INTEGER DEFAULT 0,       -- 1 เมื่ออุณหภูมิ 3 ถังอยู่ในช่วง 20–45 °C
     source TEXT NOT NULL DEFAULT 'esp32_live', -- 'esp32_live' หรือ 'simulated'
@@ -103,7 +104,7 @@ CREATE TABLE mixing_jobs (
 
 ## 3. ตารางเกณฑ์พืชเป้าหมาย 3 ชนิด (อ้างอิงสัดส่วนตามข้อมูลกรมวิชาการเกษตร & ARDA)
 
-> **หมายเหตุทางวิชาการ:** ค่าเป้าหมายทั้ง 3 ระยะต่อฤดู/ปีด้านล่างปรับสัดส่วนให้สอดคล้องกับปริมาณธาตุอาหารที่พืชดูดใช้จริงตามข้อมูลกรมวิชาการเกษตร (ข้าวโพด ~18-8-11 กก./ไร่ ที่ 1 ตัน/ไร่, ถั่วลิสง ~7-0.9-2.3 กก./ไร่ ที่ 300 กก./ไร่ โดยตรึง N เองได้บางส่วน, กาแฟอราบิก้า ~25-2.5-27.5 กก./ไร่/ปี ที่ 700 กก./ไร่ แปลงเป็น $\text{g/m}^2$ โดย $\div 1.6$) โดยยังต้องเทียบตารางระดับดิน (ต่ำ/กลาง/สูง) จากคู่มือปุ๋ยสั่งตัดฉบับเต็ม (2565) ตามพันธุ์เฉพาะถิ่นจริงอีกครั้ง
+> **หมายเหตุทางวิชาการ:** ค่าเป้าหมายทั้ง 3 ระยะต่อฤดู/ปีด้านล่างปรับสัดส่วนให้สอดคล้องกับปริมาณธาตุอาหารที่พืชดูดใช้จริงตามข้อมูลกรมวิชาการเกษตรและงานวิจัยพื้นที่สูง (ข้าวโพดเลี้ยงสัตว์ ~18-8-11 กก./ไร่ ที่ผลผลิต 1 ตัน/ไร่ $\div 1.6 = 11.25 - 5.00 - 6.88\ \text{g/m}^2$; ถั่วลิสงดูดใช้รวม ~7-0.9-2.3 กก./ไร่ ที่ 300 กก./ไร่ โดย P, K $\div 1.6 = 0.56 - 1.44\ \text{g/m}^2$ ส่วน N ปรับลดจาก $4.38$ เหลือรวม $3.00\ \text{g/m}^2$ เนื่องจากปมรากถั่วไรโซเบียมตรึงไนโตรเจนจากอากาศเองได้บางส่วน; กาแฟอราบิก้า ~25-2.5-27.5 กก./ไร่/ปี ที่ผลผลิต 700 กก./ไร่/ปี แปลงเป็น $\text{g/m}^2$ โดย $\div 1.6$) โดยใช้เป็นค่าอ้างอิงสำหรับการสาธิตจนกว่าคนที่ 4 จะอัปเดตตามพันธุ์เฉพาะถิ่นจริง
 
 | ชนิดพืช | พันธุ์ตัวอย่าง | ระยะการเจริญเติบโต | ความลึกราก ($d_{\text{root}}$) | เป้าหมาย $\text{N}$ ($\text{g/m}^2$) | เป้าหมาย $\text{P}_2\text{O}_5$ ($\text{g/m}^2$) | เป้าหมาย $\text{K}_2\text{O}$ ($\text{g/m}^2$) | ช่วง pH | EC พ่นปลอดภัย ($\text{ppm}$) |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -139,7 +140,7 @@ CREATE TABLE mixing_jobs (
    $$\Delta X_i\text{ (cm)} = k \cdot (x_i - x_{i-1}), \qquad \Delta Y_i\text{ (cm)} = k \cdot (y_i - y_{i-1})$$
    $$\text{ระยะบินตรง } d_i = \sqrt{\Delta X_i^2 + \Delta Y_i^2}\text{ (cm)}, \qquad \text{มุมทิศ } \text{heading}_i = \text{atan2}(\Delta X_i, \Delta Y_i)$$
    $$\text{มุมสั่งเลี้ยว } \text{turn}_i = \big((\text{heading}_i - \text{heading}_{i-1} + 180^\circ) \bmod 360^\circ\big) - 180^\circ$$
-   *(ตัวอย่าง: ถ้า $\Delta X=40, \Delta Y=0$ จะได้ $\text{heading} = 90^\circ$ คือเลี้ยวขวา $90^\circ$ จากทิศเหนือ และหากระยะ $d_i < 20\text{ cm}$ ให้รวมช่วงนี้เข้ากับจุดถัดไปก่อนสั่งบิน)*
+   *(ตัวอย่าง: ถ้า $\Delta X=40, \Delta Y=0$ จะได้ $\text{heading} = 90^\circ$ คือเลี้ยวขวา $90^\circ$ จากทิศเหนือ และหากระยะ $d_i < 20\text{ cm}$ ให้รวมช่วงนี้เข้ากับจุดถัดไปก่อนสั่งบิน โดย GeoJSON Polygon จะมีจุดสุดท้ายซ้ำกับจุดแรกเสมอทำให้บินครบรอบกลับมาจุดเริ่มต้นอัตโนมัติ)*
 
 ### สูตรที่ 3: วิเคราะห์ภาพถ่ายโดรนด้วย Excess Green Index (ExG)
 *(หมายเหตุสำหรับโค้ด: OpenCV อ่านภาพเป็น **BGR** ไม่ใช่ RGB และต้องแปลงอาร์เรย์เป็น `int16` หรือ `float` ก่อนคำนวณ เพื่อป้องกัน `uint8` overflow)*
@@ -155,7 +156,7 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
    $$M_{\text{soil\_elem}, i}\ (\text{g/m}^2) = C_{\text{measured}, i}\ (\text{mg/kg}) \times \big(\rho_{\text{soil}} \times d_{\text{root}}\big)$$
    *(หมายเหตุ: $\text{mg/kg} \times 1000\ \text{kg/m}^2 \times 10^{-3}\ \text{g/mg} = \text{mg/kg} \times 1$ พอดี)*
 
-2. **แปลงรูปธาตุบริสุทธิ์เป็นรูปปุ๋ยออกไซด์และคูณสัมประสิทธิ์การดูดใช้ได้ต่อฤดู** ($f_N = 0.30,\ f_P = 0.20,\ f_K = 0.15$ เพื่อสะท้อนสัดส่วนที่พืชดูดใช้ได้จริงจากดินใน 1 ระยะ):
+2. **แปลงรูปธาตุบริสุทธิ์เป็นรูปปุ๋ยออกไซด์และคูณสัมประสิทธิ์การดูดใช้ได้ต่อฤดู** ($f_N = 0.30,\ f_P = 0.20,\ f_K = 0.15$ ซึ่งเป็นค่าพารามิเตอร์สมมติสำหรับโมเดลสาธิตเพื่อสะท้อนสัดส่วนที่พืชดูดใช้ได้จริงจากดินใน 1 ระยะ):
    $$M_{\text{soil, N}} = M_{\text{soil\_elem, N}} \times 0.30, \qquad M_{\text{soil, P}_2\text{O}_5} = 2.29 \times M_{\text{soil\_elem, P}} \times 0.20, \qquad M_{\text{soil, K}_2\text{O}} = 1.20 \times M_{\text{soil\_elem, K}} \times 0.15$$
 
    > **ตัวอย่างคำนวณ:** ดินร่วน $\rho = 1.35\ \text{g/cm}^3$, ข้าวโพดระยะเติบโต $d_{\text{root}} = 0.25\ \text{m}$, วัดค่า N ระดับกลางจาก LDD ได้ $15\ \text{mg/kg}$ และ P ระดับต่ำ $5\ \text{mg/kg}$ *(สมมติให้ความเข้มข้นเฉลี่ยในเขตรากพืชเท่ากับหน้าดินที่เก็บ 0–15 ซม.)*:
@@ -179,20 +180,20 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
 2. **การย่อสเกลปริมาตรสำหรับผสมโชว์บนโต๊ะ (Demo Batch Scaling):**
    ผสมในถังกลางปริมาตรรวม $V_{\text{batch}} = 200\text{ ml}$ โดยล็อกปริมาณน้ำหมักรวมคงที่ $V_{\text{demo\_bio}} = 80\text{ ml}$ และใช้ $\Delta M$ กำหนด **อัตราส่วน N : P : K** (ส่วนที่เหลือ $120\text{ ml}$ เป็นน้ำเปล่าเจือจาง):
    $$V_{\text{demo}, i} = V_{\text{demo\_bio}} \times \frac{V_{\text{real}, i}}{V_{\text{real, N}} + V_{\text{real, P}} + V_{\text{real, K}}}$$
-   *(กรณีที่ดินไม่ขาดธาตุใดเลย คือผลรวม $V_{\text{real}} = 0$ ให้คืนค่าเวลาทุกปั๊มเป็น `0.0 s` และแจ้งเตือนบนเว็บว่า "ดินมีความสมบูรณ์เพียงพอ ไม่ต้องเติมปุ๋ย")*
+   *(กรณีที่ดินไม่ขาดธาตุใดเลย คือผลรวม $V_{\text{real}} = 0$ ให้บันทึก `status = 'ready'`, คืนค่าเวลาทุกปั๊มเป็น `0.0 s` และแจ้งเตือนบนเว็บว่า "ดินมีความสมบูรณ์เพียงพอ ไม่ต้องเติมปุ๋ย")*
 
 3. **คำนวณเวลาเปิด-ปิดปั๊ม 4 ตัว ($t_{\text{pump}, i}$) พร้อม Minimum Runtime Guard:**
    $$t_{\text{pump}, i}\ (\text{วินาที}) = \frac{V_{\text{demo}, i}\ (\text{ml})}{Q_{\text{pump}, i}\ (\text{ml/s})}$$
-   - **กติกาเดียวป้องกัน Pump Dead-Time:** ก่อนเริ่มสั่งงานต้องไล่น้ำเต็มสายยางทุกเส้น (Pre-priming) และหากปั๊มธาตุใดคำนวณเวลาได้ $0 < t_{\text{pump}, i} < 1.5\text{ s}$ ให้ **ตัดเป็น `0.0 s`** แล้วย้ายปริมาตรส่วนนั้นไปบวกในน้ำเปล่าเพื่อให้รวมยังเป็น $200\text{ ml}$ (API แปลงเป็นมิลลิวินาทีด้วย `round(sec * 1000)`)
-   > **ตัวอย่างคำนวณ:** ปั๊ม N มี $Q = 5.0\ \text{ml/s}$, ปริมาตร $V_{\text{demo, N}} = 68.8\text{ ml} \rightarrow t_{\text{pump, N}} = 68.8 / 5.0 = 13.77\text{ s}$ (`13766 ms`)
+   - **กติกาเดียวป้องกัน Pump Dead-Time:** ก่อนเริ่มสั่งงานต้องไล่น้ำเต็มสายยางทุกเส้น (Pre-priming) และหากปั๊มธาตุใดคำนวณเวลาได้ $0 < t_{\text{pump}, i} < 1.5\text{ s}$ ให้ **ตัดเป็น `0.0 s`** แล้วย้ายปริมาตรส่วนนั้นไปบวกในน้ำเปล่าเพื่อให้รวมยังเป็น $200\text{ ml}$ โดยเก็บ `pump_seconds` ปัดทศนิยม 2 ตำแหน่ง (`round(sec, 2)`) ลงฐานข้อมูล แล้วแปลงเป็นมิลลิวินาทีใน API ด้วย `int(round(pump_sec * 1000))`
+   > **ตัวอย่างคำนวณ:** ปั๊ม N มี $Q = 5.0\ \text{ml/s}$, ปริมาตร $V_{\text{demo, N}} = 68.83\text{ ml} \rightarrow t_{\text{pump, N}} = \text{round}(68.8326 / 5.0, 2) = 13.77\text{ s}$ (`13770 ms`) และปั๊ม P มี $V_{\text{demo, P}} = 11.17\text{ ml} \rightarrow t_{\text{pump, P}} = \text{round}(11.1674 / 5.0, 2) = 2.23\text{ s}$ (`2230 ms`)
 
-4. **ลูปตรวจเช็กความเค็มและเจือจาง TDS/EC อัตโนมัติ (Salinity/Osmotic Burn Guard):**
-   หลังเปิดปั๊มครบ 4 ตัว ให้ผู้ใช้กวนถังผสมแล้วจุ่มหัววัด รอ **5 วินาที** แล้วกดปุ่มตรวจบนเว็บ (ให้ ESP32 อ่านค่า 30 ครั้งแล้วใช้ค่า **มัธยฐาน** เพื่อลดสัญญาณรบกวน):
+4. **ลูปตรวจเช็กความเค็มและเจือจาง TDS/EC กึ่งอัตโนมัติ (Salinity/Osmotic Burn Guard):**
+   หลัง ESP32 #2 เปิดปั๊มครบ 4 ตัว ให้ผู้ใช้กวนถังผสมแล้วจุ่มหัววัด TDS รอ **5 วินาที** เพื่อให้ ESP32 #2 ส่งค่า `mixer_tds_ppm` (มัธยฐานจาก 30 ตัวอย่าง) เข้า `/api/fermenter/telemetry` แล้วกดปุ่มตรวจบนเว็บ (`POST /api/mixer/check-ec`):
    - *(หมายเหตุ: คอลัมน์ `safe_ec_max_ppm` เก็บเป็นค่า TDS หน่วย ppm โดย $\text{TDS ppm} = \text{EC }\mu\text{S/cm} \times 0.5$ และห้ามนำค่านี้ไปเทียบตรงๆ กับ `ec_us_cm` ของดิน)*
    - ถ้า `mixer_tds_ppm` $\le$ `safe_ec_max_ppm` $\rightarrow$ สถานะ = `'ready'` (อนุญาตให้ตักขึ้นโดรนได้ และล้างหัววัดด้วยน้ำสะอาด)
-   - ถ้า `mixer_tds_ppm` $>$ `safe_ec_max_ppm` $\rightarrow$ Flask คำนวณปริมาตรน้ำเปล่าเติมเพิ่มโดยคิดค่า TDS พื้นฐานของน้ำประปา ($\text{EC}_{\text{water}} \approx 150\ \text{ppm}$):
+   - ถ้า `mixer_tds_ppm` $>$ `safe_ec_max_ppm` $\rightarrow$ Flask คำนวณปริมาตรน้ำเปล่าเติมเพิ่มโดยคิดค่า TDS พื้นฐานของน้ำประปา ($\text{EC}_{\text{water}} \approx 150\ \text{ppm}$) และใช้ปริมาตรสะสมปัจจุบัน $V_{\text{current}} = V_{\text{N}} + V_{\text{P}} + V_{\text{K}} + V_{\text{water}}$:
      $$V_{\text{add\_water}} = V_{\text{current}} \times \frac{\text{EC}_{\text{current}} - \text{EC}_{\text{safe}}}{\text{EC}_{\text{safe}} - \text{EC}_{\text{water}}}$$
-     *(ตรวจเช็กความจุถัง: หาก $V_{\text{current}} + V_{\text{add\_water}} > 500\text{ ml}$ ให้หยุดและแจ้งเตือนผู้ใช้แบ่งน้ำปุ๋ยออกครึ่งหนึ่งก่อน)* มิฉะนั้นระบบจะตั้ง `status = 'diluting'`, รีเซ็ตเวลาปั๊ม N/P/K เป็น `0`, และใส่เวลาปั๊มน้ำเปล่า $t_{\text{add}} = V_{\text{add\_water}} / Q_{\text{pump, water}}$ ให้ ESP32 #2 ดึงไปเติมน้ำเจือจางแล้ววัดซ้ำ
+     *(ตรวจเช็กความจุถัง: หาก $V_{\text{current}} + V_{\text{add\_water}} > 500\text{ ml}$ ให้หยุดและแจ้งเตือนผู้ใช้แบ่งน้ำปุ๋ยออกครึ่งหนึ่งก่อน)* มิฉะนั้นระบบจะตั้ง `status = 'diluting'`, บวก `vol_water_ml` สะสมเพิ่ม, รีเซ็ตเวลาปั๊ม N/P/K เป็น `0`, และใส่เวลาปั๊มน้ำเปล่า $t_{\text{add}} = V_{\text{add\_water}} / Q_{\text{pump, water}}$ ให้ ESP32 #2 ดึงไปเติมน้ำเจือจางแล้ววัดซ้ำ
 
 ---
 
@@ -209,24 +210,24 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
 | `/api/soil/manual` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `{"plot_id": 1, "mode": "sim", "n_level": "medium", "p_level": "low", "k_level": "medium", "ph_value": 6.0}`<br>**Resp `200`:** `{"ok": true, "nitrogen_mg_kg": 15.0, "phosphorus_mg_kg": 5.0, "potassium_mg_kg": 60.0, "provenance": "MANUAL"}` |
 | `/api/soil/latest/<plot_id>` | `GET` | Web UI $\leftarrow$ Flask | **Resp `200`:** `{"mode": "sim", "reading": {"moisture_pct": 42.5, "ec_us_cm": null, "nitrogen_mg_kg": 15.0, "phosphorus_mg_kg": 5.0, "potassium_mg_kg": 60.0, "ph_value": 6.0, "source": "manual_testkit", "recorded_at": "2026-11-16T09:30:00"}}` |
 | `/api/fermenter/telemetry` | `POST` | ESP32 #2 / Sim $\rightarrow$ Flask | **Req:** `{"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "temp_mixer": null, "mixer_tds_ppm": null, "simulated": false}` *(ส่ง `mixer_tds_ppm: null` ระหว่างเช็กอุณหภูมิปกติ และส่งเป็นตัวเลข 30-sample median เฉพาะตอนจุ่มวัดหลังผสมเสร็จ)*<br>**Resp `200`:** `{"ok": true, "is_ready": true}` *(พร้อมเมื่ออุณหภูมิ 3 ถังอยู่ในช่วง 20–45 °C; ช่วงดีที่สุดคือ 25–40 °C)* |
-| `/api/fermenter/latest` | `GET` | Web UI $\leftarrow$ Flask | **Resp `200`:** `{"mode": "live", "telemetry": {"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "temp_mixer_c": null, "mixer_tds_ppm": 740, "is_ready": true, "recorded_at": "..."}}` |
-| `/api/mixer/calculate` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `{"plot_id": 1, "mode": "sim", "crop_profile_id": 2, "confirmed_area_m2": 100.0, "soil_type": "loam"}`<br>**Resp `200`:** `{"job_id": 5, "deficits_g": {"n": 448.1, "p2o5": 72.7, "k2o": 0.0}, "demo_volumes_ml": {"n": 68.8, "p": 11.2, "k": 0.0, "water": 120.0}, "pump_seconds": {"n": 13.77, "p": 2.23, "k": 0.0, "water": 24.0}, "ph_warning": null}` |
-| `/api/mixer/command?mode=live` | `GET` | ESP32 #2 $\leftarrow$ Flask | **Resp `200` (มีงานค้าง — แปลงวินาทีเป็น ms ด้วย `round(sec * 1000)`):** `{"has_command": true, "job_id": 5, "pump_n_ms": 13766, "pump_p_ms": 2234, "pump_k_ms": 0, "pump_water_ms": 24000}`<br>**Resp `200` (ไม่มีงาน):** `{"has_command": false, "job_id": null}` |
-| `/api/mixer/status` | `POST` | ESP32 #2 $\rightarrow$ Flask | **Req:** `{"job_id": 5, "status": "ready", "final_tds_ppm": 780}`<br>**Resp `200`:** `{"ok": true, "status": "ready"}` |
+| `/api/fermenter/latest` | `GET` | Web UI $\leftarrow$ Flask | **Resp `200`:** `{"mode": "live", "telemetry": {"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "temp_mixer": null, "mixer_tds_ppm": 740, "is_ready": true, "recorded_at": "..."}}` *(Backend แปลงคอลัมน์ `temp_*_c` ใน SQLite เป็น `temp_n, temp_p, temp_k, temp_mixer` ให้ตรงกับขา POST)* |
+| `/api/mixer/calculate` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `{"plot_id": 1, "mode": "sim", "crop_profile_id": 2, "confirmed_area_m2": 100.0, "soil_type": "loam"}`<br>**Resp `200`:** `{"job_id": 5, "status": "pending", "deficits_g": {"n": 448.1, "p2o5": 72.7, "k2o": 0.0}, "demo_volumes_ml": {"n": 68.83, "p": 11.17, "k": 0.0, "water": 120.0}, "pump_seconds": {"n": 13.77, "p": 2.23, "k": 0.0, "water": 24.0}, "ph_warning": null}` |
+| `/api/mixer/command?mode=live` | `GET` | ESP32 #2 $\leftarrow$ Flask | **Resp `200` (มีงานค้าง — เปลี่ยนสถานะงานใน DB เป็น `'mixing'` ทันทีเพื่อกันการดึงซ้ำ และแปลงวินาทีเป็น ms ด้วย `int(round(pump_sec * 1000))`):** `{"has_command": true, "mode": "live", "job_id": 5, "status": "mixing", "pump_n_ms": 13770, "pump_p_ms": 2230, "pump_k_ms": 0, "pump_water_ms": 24000}`<br>**Resp `200` (ไม่มีงาน):** `{"has_command": false, "mode": "live", "job_id": null}` |
+| `/api/mixer/status` | `POST` | ESP32 #2 $\rightarrow$ Flask | **Req:** `{"job_id": 5, "status": "mixing", "final_tds_ppm": null}` *(ส่งเมื่อปั๊มหยุดทำงานเพื่อรอผู้ใช้จุ่มวัด TDS หรือส่ง `"status": "ready"` เมื่อยืนยันค่าแล้ว)*<br>**Resp `200`:** `{"ok": true, "status": "mixing"}` |
 | `/api/mixer/check-ec` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `{"job_id": 5, "mode": "sim", "simulated": true}`<br>**Resp `200`:** `{"measured_tds_ppm": 780, "safe_ec_max_ppm": 1000, "needs_dilution": false, "add_water_ml": 0.0, "add_water_sec": 0.0, "message": "ค่าความเค็มอยู่ในเกณฑ์ปลอดภัย"}` |
-| `/api/drone/mission` | `POST` | Web UI $\rightarrow$ Flask Drone | **Req:** `{"plot_id": 1, "job_id": 5, "mode": "spray_fertilizer", "execution_mode": "SIMULATED", "waypoints_cm": [...]}`<br>**Resp `200`:** `{"ok": true, "execution_mode": "SIMULATED", "status": "completed", "message": "..."}` |
+| `/api/drone/mission` | `POST` | Web UI $\rightarrow$ Flask Drone | **Req:** `{"plot_id": 1, "job_id": 5, "mode": "survey_photo", "execution_mode": "SIMULATED", "waypoints_cm": [...]}` *(`mode` รับค่า `"survey_photo"` สำหรับบินสำรวจรอบที่ 1 หรือ `"spray_fertilizer"` สำหรับบินพ่นปุ๋ยรอบที่ 2)*<br>**Resp `200`:** `{"ok": true, "execution_mode": "SIMULATED", "mode": "survey_photo", "status": "completed", "message": "..."}` |
 | `/api/drone/analyze-image` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `multipart/form-data` (`image` file + `plot_id` + `mode`)<br>**Resp `200`:** `{"green_coverage_pct": 64.2, "mask_image_url": "/static/uploads/mask_sim_1.png"}` |
-| `/api/config` | `GET`/`POST` | Web UI $\leftrightarrow$ Flask | **JSON:** `{"q_pump_n": 5.0, "q_pump_p": 5.0, "q_pump_k": 5.0, "q_pump_water": 5.0, "c_bio_n": 2.0, "c_bio_p2o5": 1.0, "c_bio_k2o": 2.0, "water_tds_ppm": 150.0, "table_width_cm": 40.0, "table_height_cm": 60.0}` |
+| `/api/config` | `GET`/`POST` | Web UI $\leftrightarrow$ Flask | **JSON:** `{"q_pump_n": 5.0, "q_pump_p": 5.0, "q_pump_k": 5.0, "q_pump_water": 5.0, "c_bio_n": 2.0, "c_bio_p2o5": 2.0, "c_bio_k2o": 2.0, "water_tds_ppm": 150.0, "table_width_cm": 40.0, "table_height_cm": 60.0}` |
 
 ---
 
 ## 6. ค่าคงที่อ้างอิงและ State Machine กลาง (ห้ามเปลี่ยนแปลงโดยพลการ)
 
-### 6.1 ตารางแปลงผล LDD Soil Test Kit (`MANUAL`) เป็นค่าประมาณการ `mg/kg`
-ใช้ค่ากลางอ้างอิงต่อไปนี้ใน `config.py` เพื่อให้ทีมทุกคนคำนวณตรงกัน:
-- **ไนโตรเจน (N):** `low` = `5.0 mg/kg`, `medium` = `15.0 mg/kg`, `high` = `30.0 mg/kg`
-- **ฟอสฟอรัส (P):** `low` = `5.0 mg/kg`, `medium` = `15.0 mg/kg`, `high` = `30.0 mg/kg`
-- **โพแทสเซียม (K):** `low` = `30.0 mg/kg`, `medium` = `60.0 mg/kg`, `high` = `100.0 mg/kg`
+### 6.1 ตารางแปลงผล LDD Soil Test Kit (`MANUAL`) เป็นค่าตัวแทนสมมติ `mg/kg`
+*(หมายเหตุทางวิชาการ: ชุดตรวจดินภาคสนาม LDD ให้ผลเชิงกึ่งปริมาณ จึงกำหนดค่าตัวแทนสมมติเทียบเคียงช่วงเกณฑ์วิเคราะห์ดินของกรมพัฒนาที่ดินไว้ใน `config.py` เพื่อให้ทีมทุกคนคำนวณตรงกัน รองรับทั้งแบบ 3 ระดับและ 5 ระดับ)*:
+- **ไนโตรเจน (N):** `very_low` = `2.5`, `low` = `5.0`, `medium` = `15.0`, `high` = `30.0`, `very_high` = `45.0 mg/kg`
+- **ฟอสฟอรัส (P — เทียบช่วง Bray II):** `very_low` = `2.0`, `low` = `5.0`, `medium` = `15.0`, `high` = `30.0`, `very_high` = `50.0 mg/kg`
+- **โพแทสเซียม (K — เทียบช่วง NH₄OAc):** `very_low` = `20.0`, `low` = `30.0`, `medium` = `60.0`, `high` = `100.0`, `very_high` = `130.0 mg/kg`
 
 ### 6.2 ตารางความหนาแน่นมวลดินอ้างอิง ($\rho_{\text{soil}}$)
 - `sandy_loam` (ดินร่วนปนทราย) = `1.45 g/cm³`

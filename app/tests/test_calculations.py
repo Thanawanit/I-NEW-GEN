@@ -208,13 +208,26 @@ class TestFlaskAPI(unittest.TestCase):
         self.assertEqual(man_soil.status_code, 200)
         self.assertEqual(man_soil.get_json()["provenance"], "MANUAL")
 
+        # Subsequent moisture update must preserve manual NPK values
+        sim_soil_2 = self.client.post(
+            "/api/soil/update",
+            json={"plot_id": plot_id, "mode": "sim", "moisture_pct": 44.5, "ec_us_cm": None, "simulated": True},
+        )
+        self.assertEqual(sim_soil_2.status_code, 200)
+        latest_sim_soil = self.client.get(f"/api/soil/latest/{plot_id}?mode=sim").get_json()["reading"]
+        self.assertAlmostEqual(latest_sim_soil["moisture_pct"], 44.5)
+        self.assertAlmostEqual(latest_sim_soil["nitrogen_mg_kg"], 5.0)
+
         # 4. Fermenter telemetry -> Calculate -> Command -> EC check (isolated to SIM)
         ferm_resp = self.client.post(
             "/api/fermenter/telemetry",
-            json={"mode": "sim", "temp_n": 31.0, "temp_p": 30.5, "temp_k": 31.2, "mixer_tds_ppm": 850, "simulated": True},
+            json={"mode": "sim", "temp_n": 31.0, "temp_p": 30.5, "temp_k": 31.2, "temp_mixer": None, "mixer_tds_ppm": 850, "simulated": True},
         )
         self.assertEqual(ferm_resp.status_code, 200)
         self.assertTrue(ferm_resp.get_json()["is_ready"])
+        latest_ferm = self.client.get("/api/fermenter/latest?mode=sim").get_json()["telemetry"]
+        self.assertIn("temp_mixer", latest_ferm)
+        self.assertNotIn("temp_mixer_c", latest_ferm)
 
         # LIVE calculation must reject when only SIM soil exists
         live_calc_fail = self.client.post(
@@ -250,6 +263,11 @@ class TestFlaskAPI(unittest.TestCase):
         self.assertEqual(sim_cmd_resp.status_code, 200)
         self.assertTrue(sim_cmd_resp.get_json()["has_command"])
         self.assertEqual(sim_cmd_resp.get_json()["job_id"], job_id)
+        self.assertEqual(sim_cmd_resp.get_json()["status"], "mixing")
+
+        # Polling again immediately must NOT re-trigger the same pending command
+        sim_cmd_again = self.client.get("/api/mixer/command?mode=sim")
+        self.assertFalse(sim_cmd_again.get_json()["has_command"])
 
         ec_resp = self.client.post("/api/mixer/check-ec", json={"job_id": job_id, "mode": "sim", "simulated": True})
         self.assertEqual(ec_resp.status_code, 200)

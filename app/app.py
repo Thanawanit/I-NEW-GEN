@@ -139,6 +139,20 @@ def create_app(
         source = "simulated" if is_sim else "esp32_live"
 
         with get_connection(db_path) as conn:
+            prev_npk = conn.execute(
+                """
+                SELECT nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg, ph_value
+                FROM soil_readings
+                WHERE plot_id = ? AND mode = ? AND nitrogen_mg_kg IS NOT NULL
+                ORDER BY id DESC LIMIT 1
+                """,
+                (plot_id, mode),
+            ).fetchone()
+            n_val = data.get("n") if data.get("n") is not None else (prev_npk["nitrogen_mg_kg"] if prev_npk else None)
+            p_val = data.get("p") if data.get("p") is not None else (prev_npk["phosphorus_mg_kg"] if prev_npk else None)
+            k_val = data.get("k") if data.get("k") is not None else (prev_npk["potassium_mg_kg"] if prev_npk else None)
+            ph_val = data.get("ph") if data.get("ph") is not None else (prev_npk["ph_value"] if prev_npk else None)
+
             conn.execute(
                 """
                 INSERT INTO soil_readings (
@@ -148,10 +162,10 @@ def create_app(
                 """,
                 (
                     plot_id,
-                    data.get("n"),
-                    data.get("p"),
-                    data.get("k"),
-                    data.get("ph"),
+                    n_val,
+                    p_val,
+                    k_val,
+                    ph_val,
                     data.get("moisture_pct"),
                     data.get("ec_us_cm"),
                     source,
@@ -182,7 +196,7 @@ def create_app(
             prev = conn.execute(
                 """
                 SELECT moisture_pct, ec_us_cm FROM soil_readings
-                WHERE plot_id = ? AND mode = ?
+                WHERE plot_id = ? AND mode = ? AND moisture_pct IS NOT NULL
                 ORDER BY id DESC LIMIT 1
                 """,
                 (plot_id, mode),
@@ -274,6 +288,7 @@ def create_app(
         item["temp_n"] = item.pop("temp_n_c")
         item["temp_p"] = item.pop("temp_p_c")
         item["temp_k"] = item.pop("temp_k_c")
+        item["temp_mixer"] = item.pop("temp_mixer_c", None)
         item["is_ready"] = bool(item["is_ready"])
         return jsonify({"mode": mode, "telemetry": item})
 
@@ -359,6 +374,7 @@ def create_app(
                 min_runtime_s=cfg.min_pump_runtime_s,
             )
 
+            initial_status = "ready" if mixing_res["all_sufficient"] else "pending"
             cursor = conn.execute(
                 """
                 INSERT INTO mixing_jobs (
@@ -366,7 +382,7 @@ def create_app(
                     vol_n_ml, vol_p_ml, vol_k_ml, vol_water_ml,
                     pump_n_sec, pump_p_sec, pump_k_sec, pump_water_sec,
                     status, mode
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     plot_id,
@@ -381,6 +397,7 @@ def create_app(
                     mixing_res["pump_seconds"]["p"],
                     mixing_res["pump_seconds"]["k"],
                     mixing_res["pump_seconds"]["water"],
+                    initial_status,
                     mode,
                 ),
             )
@@ -391,6 +408,7 @@ def create_app(
             {
                 "job_id": job_id,
                 "mode": mode,
+                "status": initial_status,
                 "deficits_g": deficit_res["deficits_g"],
                 "demo_volumes_ml": mixing_res["demo_volumes_ml"],
                 "pump_seconds": mixing_res["pump_seconds"],
@@ -412,14 +430,18 @@ def create_app(
                 """,
                 (mode,),
             ).fetchone()
-        if not row:
-            return jsonify({"has_command": False, "mode": mode, "job_id": None})
+            if not row:
+                return jsonify({"has_command": False, "mode": mode, "job_id": None})
+            # Transition immediately to 'mixing' so repeated polling never re-runs the same command
+            conn.execute("UPDATE mixing_jobs SET status = 'mixing' WHERE id = ?", (row["id"],))
+            conn.commit()
 
         return jsonify(
             {
                 "has_command": True,
                 "mode": mode,
                 "job_id": row["id"],
+                "status": "mixing",
                 "pump_n_ms": int(round(row["pump_n_sec"] * 1000)),
                 "pump_p_ms": int(round(row["pump_p_sec"] * 1000)),
                 "pump_k_ms": int(round(row["pump_k_sec"] * 1000)),
@@ -514,16 +536,17 @@ def create_app(
             new_status = "diluting" if result["needs_dilution"] else "ready"
             if job:
                 if result["needs_dilution"]:
-                    # Queue ONLY clean water dilution runtime so ESP32 does not re-pump N/P/K
+                    # Queue ONLY clean water dilution runtime and accumulate vol_water_ml
                     conn.execute(
                         """
                         UPDATE mixing_jobs
                         SET status = ?, final_tds_ppm = ?,
+                            vol_water_ml = vol_water_ml + ?,
                             pump_n_sec = 0.0, pump_p_sec = 0.0, pump_k_sec = 0.0,
                             pump_water_sec = ?
                         WHERE id = ?
                         """,
-                        (new_status, measured_tds, result["add_water_sec"], job_id),
+                        (new_status, measured_tds, result["add_water_ml"], result["add_water_sec"], job_id),
                     )
                 else:
                     conn.execute(
