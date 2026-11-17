@@ -477,12 +477,18 @@ def create_app(
                 ) or cfg.demo_batch_ml
 
             latest_ferm = conn.execute(
-                "SELECT mixer_tds_ppm FROM fermenter_logs WHERE mode = ? ORDER BY id DESC LIMIT 1",
+                """
+                SELECT mixer_tds_ppm FROM fermenter_logs
+                WHERE mode = ? AND mixer_tds_ppm IS NOT NULL
+                ORDER BY id DESC LIMIT 1
+                """,
                 (mode,),
             ).fetchone()
 
             if data.get("measured_tds_ppm") is not None:
                 measured_tds = float(data["measured_tds_ppm"])
+            elif job and job["final_tds_ppm"] is not None:
+                measured_tds = float(job["final_tds_ppm"])
             elif latest_ferm and latest_ferm["mixer_tds_ppm"] is not None:
                 measured_tds = float(latest_ferm["mixer_tds_ppm"])
             elif is_sim:
