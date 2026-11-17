@@ -1,6 +1,6 @@
-# Software Architecture, Mathematical Formulas & Crop Database Spec — `v1.4`
+# Software Architecture, Mathematical Formulas & Crop Database Spec — `v1.5`
 
-> **วัตถุประสงค์เอกสาร:** กำหนดสถาปัตยกรรมซอฟต์แวร์ โครงสร้างฐานข้อมูลพืช/พันธุ์/ระยะการเจริญเติบโต ชุดสูตรคำนวณทางคณิตศาสตร์ทั้งหมด (พร้อมตัวอย่างการแทนค่า) และ API Contract สำหรับเชื่อมต่อเว็บ, โดรน และบอร์ด ESP32
+> **วัตถุประสงค์เอกสาร:** กำหนดสถาปัตยกรรมซอฟต์แวร์ (รันบน **Raspberry Pi 5** + **Unified ESP32 1 บอร์ด**) โครงสร้างฐานข้อมูลพืช/พันธุ์/ระยะการเจริญเติบโต ชุดสูตรคำนวณทางคณิตศาสตร์ทั้งหมด (พร้อมตัวอย่างการแทนค่า) และ API Contract สำหรับเชื่อมต่อเว็บ, โดรน และบอร์ด ESP32
 
 ---
 
@@ -9,11 +9,11 @@
 | เลเยอร์ | เทคโนโลยีที่กำหนด | หน้าที่หลัก |
 | :--- | :--- | :--- |
 | **Frontend (Map & UI)** | HTML5 + CSS + JavaScript + **Leaflet.js** + **Leaflet.draw** (`L.GeometryUtil.geodesicArea`) + **Esri World Imagery / OpenStreetMap** | วาด Polygon ขอบเขตแปลงบนแผนที่ภาพถ่ายดาวเทียมฟรี (**ไม่ต้องใช้บัตรเครดิต/API Key**), คำนวณพื้นที่ ($\text{m}^2$) แบบ Geodesic พร้อมช่องให้ผู้ใช้แก้ไขเลขเอง, ฟอร์มเลือกพืช/พันธุ์/ระยะเติบโต, และ Dashboard แสดงผลเรียลไทม์ |
-| **Backend Server** | **Python Flask** (`host='0.0.0.0'`, พอร์ต `5000`) | คำนวณสูตรปุ๋ยและระยะบิน, ประมวลผลภาพถ่ายโดรน, รันโมเดล Machine Learning, สื่อสารกับโดรนผ่าน USB Wi-Fi, และเปิด REST API ให้ ESP32 ส่งค่า/รับคำสั่ง |
+| **Backend Server** | **Python Flask บน Raspberry Pi 5** (`host='0.0.0.0'`, พอร์ต `5000`) | คำนวณสูตรปุ๋ยและระยะบิน, ประมวลผลภาพถ่ายโดรน, รันโมเดล Machine Learning, สื่อสารกับโดรนผ่าน USB Wi-Fi, และเปิด REST API ให้ ESP32 ส่งค่า/รับคำสั่ง |
 | **Machine Learning (AI)** | **scikit-learn (`RandomForestRegressor`)** | ประมวลผลตัวแปรตาราง 9 มิติ (ชนิดพืช/ระยะเติบโต, ความลึกราก, ความหนาแน่นดิน, N, P, K, pH, ความชื้นดิน, และดัชนีความเขียว `ExG %`) เพื่อพยากรณ์ความต้องการปุ๋ยแบบไม่เป็นเชิงเส้น พร้อมคำนวณค่า $R^2$, `MAE` และ `Feature Importance (%)` |
 | **Image Processing** | **OpenCV (`cv2`) + NumPy** | อ่านภาพถ่ายจากโดรนรอบที่ 1 (OpenCV อ่านสีเป็น **BGR** ต้องแปลงเป็น `int16` ก่อนคำนวณ $2G - R - B$ เพื่อป้องกัน `uint8` overflow) |
 | **Database** | **SQLite** | จัดเก็บข้อมูลแปลงเกษตร, เกณฑ์ธาตุอาหารพืช 3 ชนิด, ค่าตรวจดินสด, สถานะถังหมัก 3 ถัง และประวัติการสั่งผสม/บินพ่น |
-| **IoT Firmware** | Arduino C++ (สำหรับ **ESP32 #1** ชุดดิน และ **ESP32 #2** เครื่องหมัก/ผสม) | อ่านค่าเซนเซอร์และยิง HTTP POST/GET JSON เข้า Flask Server ผ่าน Wi-Fi วงเดียวกับโน้ตบุ๊ก |
+| **IoT Firmware** | Arduino C++ (สำหรับ **Unified ESP32 1 บอร์ด** รวม Soil + Fermenter + Mixer) | อ่านค่าเซนเซอร์และยิง HTTP POST/GET JSON เข้า Flask Server บน Raspberry Pi 5 ผ่าน Wi-Fi 2.4 GHz วงเดียวกัน |
 
 ---
 

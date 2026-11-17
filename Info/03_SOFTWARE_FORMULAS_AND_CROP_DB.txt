@@ -1,6 +1,6 @@
-Software Architecture, Mathematical Formulas & Crop Database Spec — `v1.4`
+Software Architecture, Mathematical Formulas & Crop Database Spec — `v1.5`
 
-> วัตถุประสงค์เอกสาร: กำหนดสถาปัตยกรรมซอฟต์แวร์ โครงสร้างฐานข้อมูลพืช/พันธุ์/ระยะการเจริญเติบโต ชุดสูตรคำนวณทางคณิตศาสตร์ทั้งหมด (พร้อมตัวอย่างการแทนค่า) และ API Contract สำหรับเชื่อมต่อเว็บ, โดรน และบอร์ด ESP32
+> วัตถุประสงค์เอกสาร: กำหนดสถาปัตยกรรมซอฟต์แวร์ (รันบน Raspberry Pi 5 + Unified ESP32 1 บอร์ด) โครงสร้างฐานข้อมูลพืช/พันธุ์/ระยะการเจริญเติบโต ชุดสูตรคำนวณทางคณิตศาสตร์ทั้งหมด (พร้อมตัวอย่างการแทนค่า) และ API Contract สำหรับเชื่อมต่อเว็บ, โดรน และบอร์ด ESP32
 
 ---
 
@@ -9,11 +9,11 @@ Software Architecture, Mathematical Formulas & Crop Database Spec — `v1.4`
 | เลเยอร์ | เทคโนโลยีที่กำหนด | หน้าที่หลัก |
 | :--- | :--- | :--- |
 | Frontend (Map & UI) | HTML5 + CSS + JavaScript + Leaflet.js + Leaflet.draw (`L.GeometryUtil.geodesicArea`) + Esri World Imagery / OpenStreetMap | วาด Polygon ขอบเขตแปลงบนแผนที่ภาพถ่ายดาวเทียมฟรี (ไม่ต้องใช้บัตรเครดิต/API Key), คำนวณพื้นที่ (m^2) แบบ Geodesic พร้อมช่องให้ผู้ใช้แก้ไขเลขเอง, ฟอร์มเลือกพืช/พันธุ์/ระยะเติบโต, และ Dashboard แสดงผลเรียลไทม์ |
-| Backend Server | Python Flask (`host='0.0.0.0'`, พอร์ต `5000`) | คำนวณสูตรปุ๋ยและระยะบิน, ประมวลผลภาพถ่ายโดรน, รันโมเดล Machine Learning, สื่อสารกับโดรนผ่าน USB Wi-Fi, และเปิด REST API ให้ ESP32 ส่งค่า/รับคำสั่ง |
+| Backend Server | Python Flask บน Raspberry Pi 5 (`host='0.0.0.0'`, พอร์ต `5000`) | คำนวณสูตรปุ๋ยและระยะบิน, ประมวลผลภาพถ่ายโดรน, รันโมเดล Machine Learning, สื่อสารกับโดรนผ่าน USB Wi-Fi, และเปิด REST API ให้ ESP32 ส่งค่า/รับคำสั่ง |
 | Machine Learning (AI) | scikit-learn (`RandomForestRegressor`) | ประมวลผลตัวแปรตาราง 9 มิติ (ชนิดพืช/ระยะเติบโต, ความลึกราก, ความหนาแน่นดิน, N, P, K, pH, ความชื้นดิน, และดัชนีความเขียว `ExG %`) เพื่อพยากรณ์ความต้องการปุ๋ยแบบไม่เป็นเชิงเส้น พร้อมคำนวณค่า R^2, `MAE` และ `Feature Importance (%)` |
 | Image Processing | OpenCV (`cv2`) + NumPy | อ่านภาพถ่ายจากโดรนรอบที่ 1 (OpenCV อ่านสีเป็น BGR ต้องแปลงเป็น `int16` ก่อนคำนวณ 2G - R - B เพื่อป้องกัน `uint8` overflow) |
 | Database | SQLite | จัดเก็บข้อมูลแปลงเกษตร, เกณฑ์ธาตุอาหารพืช 3 ชนิด, ค่าตรวจดินสด, สถานะถังหมัก 3 ถัง และประวัติการสั่งผสม/บินพ่น |
-| IoT Firmware | Arduino C++ (สำหรับ ESP32 #1 ชุดดิน และ ESP32 #2 เครื่องหมัก/ผสม) | อ่านค่าเซนเซอร์และยิง HTTP POST/GET JSON เข้า Flask Server ผ่าน Wi-Fi วงเดียวกับโน้ตบุ๊ก |
+| IoT Firmware | Arduino C++ (สำหรับ Unified ESP32 1 บอร์ด รวม Soil + Fermenter + Mixer) | อ่านค่าเซนเซอร์และยิง HTTP POST/GET JSON เข้า Flask Server บน Raspberry Pi 5 ผ่าน Wi-Fi 2.4 GHz วงเดียวกัน |
 
 ---
 
@@ -247,18 +247,18 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
 5. `sprayed` — โดรนรอบที่ 2 ปฏิบัติภารกิจพ่นปุ๋ยเสร็จสิ้น
 
 
-## 7. ที่มาของชุดข้อมูล Open-Source และผลการประเมินโมเดล Random Forest
+7. ที่มาของชุดข้อมูล Open-Source และผลการประเมินโมเดล Random Forest
 
-**แหล่งข้อมูล:** Crop Recommendation Dataset (Kaggle, Atharva Ingle; ไฟล์สำเนา: https://raw.githubusercontent.com/Gladiator07/Harvestify/master/Data-processed/crop_recommendation.csv) จำนวน 2,200 แถว, 22 ชนิดพืช ค่าที่ใช้: N, P, K (kg/ha → mg/kg หาร 2.0 สำหรับชั้นดิน 15 ซม.), pH, humidity (ใช้เป็นตัวแทน moisture_pct)
+แหล่งข้อมูล: Crop Recommendation Dataset (Kaggle, Atharva Ingle; ไฟล์สำเนา: https://raw.githubusercontent.com/Gladiator07/Harvestify/master/Data-processed/crop_recommendation.csv) จำนวน 2,200 แถว, 22 ชนิดพืช ค่าที่ใช้: N, P, K (kg/ha → mg/kg หาร 2.0 สำหรับชั้นดิน 15 ซม.), pH, humidity (ใช้เป็นตัวแทน `moisture_pct`)
 - ชุดข้อมูลไม่มี groundnut (ถั่วลิสง) แถวดินจริงทั้ง 2,200 แถว (รวม maize, coffee และพืชตระกูลถั่ว) จึงถูกจับคู่กับโปรไฟล์ทั้ง 9 รายการ เพราะแถวของพืชชนิดเดียวครอบคลุมช่วง N/P/K แคบเกินไป โมเดลจะพยากรณ์นอกช่วงไม่ได้
-- ลิงก์ HSE (AnnSenina/python_hse_2024) ที่ระบุไว้แรกเริ่ม ไม่มีคอลัมน์ N/P/K และไม่มีกาแฟ จึงไม่สามารถใช้ได้
-- ความหนาแน่นดิน (1.25/1.35/1.45) และ exg_green_pct (สุ่มตามระยะการเจริญเติบโต) เป็นค่าจำลอง ไม่ใช่ข้อมูลจริง
-- **Target (deficit_*_g_m2) คำนวณจากสูตรปฐพีวิทยาไม่เป็นเชิงเส้น (ผลกระทบ pH ต่อ P, ความชื้นต่อการแพร่, ExG ต่อ N) กับเกณฑ์กรมวิชาการเกษตร (2565) ไม่ใช่ค่าวัดภาคสนาม** ดังนั้น R² สูงบ่งชี้ว่าโมเดลเรียนรู้สูตรได้ ไม่ใช่ความแม่นยำเทียบแปลงจริง
+- ลิงก์ HSE (`AnnSenina/python_hse_2024`) ที่ระบุไว้แรกเริ่ม ไม่มีคอลัมน์ N/P/K และไม่มีกาแฟ จึงไม่สามารถใช้ได้
+- ความหนาแน่นดิน (1.25/1.35/1.45) และ `exg_green_pct` (สุ่มตามระยะการเจริญเติบโต) เป็นค่าจำลอง ไม่ใช่ข้อมูลจริง
+- Target (`deficit_*_g_m2`) คำนวณจากสูตรปฐพีวิทยาไม่เป็นเชิงเส้น (ผลกระทบ pH ต่อ P, ความชื้นต่อการแพร่, ExG ต่อ N) กับเกณฑ์กรมวิชาการเกษตร (2565) ไม่ใช่ค่าวัดภาคสนาม ดังนั้น R² สูงบ่งชี้ว่าโมเดลเรียนรู้สูตรได้ ไม่ใช่ความแม่นยำเทียบแปลงจริง
 
-**ชุดข้อมูลที่เตรียมแล้ว:** app/data/agronomic_rf_dataset.csv (19,800 ตัวอย่าง = 2,200 แถวดินจริง × 9 โปรไฟล์พืช, สุ่มความหนาแน่นดิน 1 ค่าต่อคู่; ระบุ source_row_id, source_label)
-**สคริปต์:** app/train_rf.py (รันซ้ำได้) | **โมเดล:** app/data/rf_fertilizer_model.joblib | **รายงาน:** app/data/rf_evaluation_report.json
+ชุดข้อมูลที่เตรียมแล้ว: `app/data/agronomic_rf_dataset.csv` (19,800 ตัวอย่าง = 2,200 แถวดินจริง × 9 โปรไฟล์พืช, สุ่มความหนาแน่นดิน 1 ค่าต่อคู่; ระบุ `source_row_id`, `source_label`)
+สคริปต์: `app/train_rf.py` (รันซ้ำได้) | โมเดล: `app/data/rf_fertilizer_model.joblib` | รายงาน: `app/data/rf_evaluation_report.json`
 
-**วิธีประเมิน:** แบ่ง 80:20 และ 5-Fold GroupKFold โดยจัดกลุ่มตามแถวข้อมูลต้นทาง (ป้องกัน data leakage จากแถวดินเดียวกันที่ปรากฏใน 9 โปรไฟล์) | Train 15,840 / Test 3,960
+วิธีประเมิน: แบ่ง 80:20 และ 5-Fold GroupKFold โดยจัดกลุ่มตามแถวข้อมูลต้นทาง (ป้องกัน data leakage จากแถวดินเดียวกันที่ปรากฏใน 9 โปรไฟล์) | Train 15,840 / Test 3,960
 
 | Target | R² (hold-out) | RMSE (g/m²) | MAE (g/m²) | R² (5-fold CV) | RMSE (CV) | MAE (CV) |
 |---|---|---|---|---|---|---|
@@ -267,18 +267,18 @@ Green Coverage (\%) = \frac{จำนวนพิกเซลที่  ExG > T_
 | K2O | 0.9987 | 0.1028 | 0.0601 | 0.9988 ± 0.0001 | 0.0992 | 0.0598 |
 | overall | 0.9958 | 0.0969 | 0.0481 | 0.9956 ± 0.0002 | 0.0959 | 0.0476 |
 
-**Feature Importance (%):**
+Feature Importance (%):
 
 | Feature | % |
 |---|---|
-| crop_profile_id | 49.95 |
-| soil_p_mg_kg | 23.38 |
-| root_depth_m | 12.79 |
-| soil_n_mg_kg | 11.22 |
-| soil_k_mg_kg | 2.07 |
-| bulk_density_g_cm3 | 0.18 |
-| ph_value | 0.18 |
-| moisture_pct | 0.14 |
-| exg_green_pct | 0.09 |
+| `crop_profile_id` | 49.95 |
+| `soil_p_mg_kg` | 23.38 |
+| `root_depth_m` | 12.79 |
+| `soil_n_mg_kg` | 11.22 |
+| `soil_k_mg_kg` | 2.07 |
+| `bulk_density_g_cm3` | 0.18 |
+| `ph_value` | 0.18 |
+| `moisture_pct` | 0.14 |
+| `exg_green_pct` | 0.09 |
 
 หมายเหตุ: Feature Importance ของ pH/ความชื้น/ExG ต่ำ (<0.2%) เพราะโมเดลขึ้นกับชนิดพืช/ระยะ รากพืช และ N/P ของดินเป็นหลัก ผลของ pH/ความชื้น/ExG เป็นตัวคูณขนาดเล็ก (ปรับ ±8-40%) เมื่อเทียบกับเป้าหมายธาตุอาหาร
