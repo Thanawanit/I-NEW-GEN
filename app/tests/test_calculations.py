@@ -144,7 +144,7 @@ class TestCalculations(unittest.TestCase):
 
         pred = predict_rf_nutrient_deficit(
             crop_profile_id=1,
-            root_depth_m=0.15,
+            root_depth_m=0.25,
             bulk_density_g_cm3=1.35,
             measured_n_mg_kg=5.0,
             measured_p_mg_kg=2.0,
@@ -154,7 +154,7 @@ class TestCalculations(unittest.TestCase):
             exg_green_pct=55.0,
             area_m2=100.0,
         )
-        # Rice stage 1 target N 2.25 / P2O5 2.81 g/m2 on a nutrient-poor soil -> ~180 g N, ~260 g P2O5 per 100 m2
+        # Rice stage 1 (root_depth=0.25m) target N 2.25 / P2O5 2.81 g/m2 on nutrient-poor soil -> ~160 g N, ~250 g P2O5 per 100 m2
         self.assertGreater(pred["rf_deficits_g"]["n"], 120.0)
         self.assertGreater(pred["rf_deficits_g"]["p2o5"], 150.0)
         self.assertAlmostEqual(sum(pred["rf_demo_volumes_ml"].values()), 200.0, places=1)

@@ -34,12 +34,15 @@ REPORT_PATH = DATA_DIR / "rf_evaluation_report.json"
 SAMPLES_PER_PROFILE = 1500
 STAGE_EXG_MEAN = {1: 35.0, 2: 60.0, 3: 55.0}
 BULK_DENSITIES = [1.25, 1.35, 1.45]
-# Simulation assumptions (log-normal medians sit in LDD "moderate" classes; sigma spreads low..high).
-PH_MEAN, PH_SD, PH_RANGE = 5.8, 0.6, (4.5, 7.2)
-P_BRAY_MEDIAN, P_SIGMA, P_RANGE = 9.0, 0.8, (1.0, 60.0)      # mg/kg; LDD: <3 very low .. >45 very high
-K_MEDIAN, K_SIGMA, K_RANGE = 35.0, 0.7, (5.0, 150.0)          # mg/kg; LDD: <10 low, 10-25 mid, >25 high
-N_MEDIAN, N_SIGMA, N_RANGE = 12.0, 0.6, (2.0, 60.0)           # mg/kg mineral N; ASSUMPTION, no source
-MOISTURE_PADDY, MOISTURE_UPLAND = (50.0, 95.0), (15.0, 75.0)  # % ; ASSUMPTION, no source
+# Simulation distributions anchored to verified Rice Department & LDD soil test thresholds:
+# - Rice Dept (files-rice-1749007694793.pdf & 1775720306069.pdf): pH 5.5-6.5; P <5 low, 5-10 mid, >10 high ppm;
+#   K <60 low, 60-80 mid, >80 high ppm; OM <1% low, 1-2% mid, >2% high
+# - LDD upland thresholds: P Bray II <10 low, 10-15 mid, >15 high mg/kg; K <10 low, 10-25 mid, >25 high mg/kg
+PH_MEAN, PH_SD, PH_RANGE = 5.9, 0.55, (4.5, 7.2)
+P_BRAY_MEDIAN, P_SIGMA, P_RANGE = 8.0, 0.75, (1.0, 60.0)      # mg/kg; covers <5 (rice low) and 5-15 (mid) up to >45
+K_MEDIAN, K_SIGMA, K_RANGE = 55.0, 0.65, (5.0, 150.0)         # mg/kg; covers <60 (rice low), 60-80 (rice mid), >80 (high)
+N_MEDIAN, N_SIGMA, N_RANGE = 12.0, 0.6, (2.0, 60.0)           # mg/kg available N (proxy for %OM 0.5-3.5%)
+MOISTURE_PADDY, MOISTURE_UPLAND = (21.5, 85.0), (15.0, 75.0)  # % ; paddy field test 21.5-27.2% up to saturated/flooded
 PADDY_CROPS = {"ข้าว"}
 TARGETS = ["deficit_n_g_m2", "deficit_p2o5_g_m2", "deficit_k2o_g_m2"]
 N_ESTIMATORS, MAX_DEPTH, MIN_LEAF, SEED = 120, 12, 2, 42
