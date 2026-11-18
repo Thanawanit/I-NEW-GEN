@@ -1,14 +1,17 @@
-"""Data curation + training pipeline for the Random Forest fertilizer-deficit model.
+"""Data simulation + training pipeline for the Random Forest fertilizer-deficit model.
 
 Run (locally or on Google Colab):  python train_rf.py
 Outputs (app/data/): agronomic_rf_dataset.csv, rf_fertilizer_model.joblib, rf_evaluation_report.json
+
+Soil states are SIMULATED for Mae Hong Son (see Info/03_SOFTWARE_FORMULAS_AND_CROP_DB.md section 7):
+no Khun Yuam soil-test table was found, so distributions are anchored to Land Development Department
+(LDD) interpretation classes. Targets come from the agronomic formula in ml_model.py.
 """
 
 from __future__ import annotations
 
 import json
 import time
-import urllib.request
 from pathlib import Path
 
 import joblib
@@ -17,65 +20,60 @@ import pandas as pd
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import GroupKFold, GroupShuffleSplit
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from ml_model import FEATURE_NAMES, _compute_agronomic_nonlinear_targets
 from database import SEED_CROP_PROFILES
+from ml_model import FEATURE_NAMES, _compute_agronomic_nonlinear_targets
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
-RAW_CSV = DATA_DIR / "Crop_recommendation.csv"
 DATASET_CSV = DATA_DIR / "agronomic_rf_dataset.csv"
 MODEL_PATH = DATA_DIR / "rf_fertilizer_model.joblib"
 REPORT_PATH = DATA_DIR / "rf_evaluation_report.json"
 
-# The HSE mirror lacks N/P/K and coffee, so use the original Kaggle-derived table.
-RAW_URL = "https://raw.githubusercontent.com/Gladiator07/Harvestify/master/Data-processed/crop_recommendation.csv"
-
-# Mean canopy ExG per growth stage (1..3) matching expected_exg in ml_model.
+SAMPLES_PER_PROFILE = 1500
 STAGE_EXG_MEAN = {1: 35.0, 2: 60.0, 3: 55.0}
 BULK_DENSITIES = [1.25, 1.35, 1.45]
-# kg/ha (dataset) -> mg/kg: a 15 cm layer weighs ~2e6 kg/ha, so 1 mg/kg ~ 2 kg/ha.
-KG_HA_PER_MG_KG = 2.0
+# Simulation assumptions (log-normal medians sit in LDD "moderate" classes; sigma spreads low..high).
+PH_MEAN, PH_SD, PH_RANGE = 5.8, 0.6, (4.5, 7.2)
+P_BRAY_MEDIAN, P_SIGMA, P_RANGE = 9.0, 0.8, (1.0, 60.0)      # mg/kg; LDD: <3 very low .. >45 very high
+K_MEDIAN, K_SIGMA, K_RANGE = 35.0, 0.7, (5.0, 150.0)          # mg/kg; LDD: <10 low, 10-25 mid, >25 high
+N_MEDIAN, N_SIGMA, N_RANGE = 12.0, 0.6, (2.0, 60.0)           # mg/kg mineral N; ASSUMPTION, no source
+MOISTURE_PADDY, MOISTURE_UPLAND = (50.0, 95.0), (15.0, 75.0)  # % ; ASSUMPTION, no source
+PADDY_CROPS = {"ข้าว"}
 TARGETS = ["deficit_n_g_m2", "deficit_p2o5_g_m2", "deficit_k2o_g_m2"]
 N_ESTIMATORS, MAX_DEPTH, MIN_LEAF, SEED = 120, 12, 2, 42
 
 
-def load_raw() -> pd.DataFrame:
-    if not RAW_CSV.exists():
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        urllib.request.urlretrieve(RAW_URL, RAW_CSV)
-    return pd.read_csv(RAW_CSV)
+def _lognormal(rng: np.random.Generator, median: float, sigma: float, bounds: tuple[float, float]) -> float:
+    return float(np.clip(rng.lognormal(np.log(median), sigma), *bounds))
 
 
-def build_dataset(raw: pd.DataFrame) -> pd.DataFrame:
+def build_dataset() -> pd.DataFrame:
     rng = np.random.default_rng(SEED)
     records: list[dict] = []
     for pid, prof in enumerate(SEED_CROP_PROFILES, start=1):
-        _, _, _, root_depth, t_n, t_p2o5, t_k2o, ph_min, ph_max, _ = prof
-        # Every real soil state is paired with every profile: crop-specific rows cover only a narrow
-        # N/P/K band, so the RF would be blind outside it when fertilizing a different soil.
-        for src_idx, row in raw.iterrows():
-            for bd in [float(rng.choice(BULK_DENSITIES))]:
-                exg = float(np.clip(rng.normal(STAGE_EXG_MEAN[(pid - 1) % 3 + 1], 12.0), 5.0, 90.0))
-                s_n = row["N"] / KG_HA_PER_MG_KG
-                s_p = row["P"] / KG_HA_PER_MG_KG
-                s_k = row["K"] / KG_HA_PER_MG_KG
-                ph = float(np.clip(row["ph"], 4.0, 8.0))
-                moist = float(np.clip(row["humidity"], 10.0, 95.0))
-                dn, dp, dk = _compute_agronomic_nonlinear_targets(
-                    pid, root_depth, t_n, t_p2o5, t_k2o, ph_min, ph_max, bd,
-                    s_n, s_p, s_k, ph, moist, exg,
-                )
-                records.append({
-                    "source_row_id": int(src_idx), "source_label": row["label"],
-                    "crop_profile_id": pid, "root_depth_m": root_depth, "bulk_density_g_cm3": bd,
-                    "soil_n_mg_kg": round(s_n, 3), "soil_p_mg_kg": round(s_p, 3),
-                    "soil_k_mg_kg": round(s_k, 3), "ph_value": round(ph, 3),
-                    "moisture_pct": round(moist, 3), "exg_green_pct": round(exg, 3),
-                    "deficit_n_g_m2": round(dn, 5), "deficit_p2o5_g_m2": round(dp, 5),
-                    "deficit_k2o_g_m2": round(dk, 5),
-                })
+        crop, _, _, root_depth, t_n, t_p2o5, t_k2o, ph_min, ph_max, _ = prof
+        moist_lo, moist_hi = MOISTURE_PADDY if crop in PADDY_CROPS else MOISTURE_UPLAND
+        for _ in range(SAMPLES_PER_PROFILE):
+            bd = float(rng.choice(BULK_DENSITIES))
+            exg = float(np.clip(rng.normal(STAGE_EXG_MEAN[(pid - 1) % 3 + 1], 12.0), 5.0, 90.0))
+            s_n = _lognormal(rng, N_MEDIAN, N_SIGMA, N_RANGE)
+            s_p = _lognormal(rng, P_BRAY_MEDIAN, P_SIGMA, P_RANGE)
+            s_k = _lognormal(rng, K_MEDIAN, K_SIGMA, K_RANGE)
+            ph = float(np.clip(rng.normal(PH_MEAN, PH_SD), *PH_RANGE))
+            moist = float(rng.uniform(moist_lo, moist_hi))
+            dn, dp, dk = _compute_agronomic_nonlinear_targets(
+                pid, root_depth, t_n, t_p2o5, t_k2o, ph_min, ph_max, bd,
+                s_n, s_p, s_k, ph, moist, exg,
+            )
+            records.append({
+                "crop_profile_id": pid, "crop_name": crop, "root_depth_m": root_depth,
+                "bulk_density_g_cm3": bd, "soil_n_mg_kg": round(s_n, 3), "soil_p_mg_kg": round(s_p, 3),
+                "soil_k_mg_kg": round(s_k, 3), "ph_value": round(ph, 3), "moisture_pct": round(moist, 3),
+                "exg_green_pct": round(exg, 3), "deficit_n_g_m2": round(dn, 5),
+                "deficit_p2o5_g_m2": round(dp, 5), "deficit_k2o_g_m2": round(dk, 5),
+            })
     return pd.DataFrame(records)
 
 
@@ -96,7 +94,7 @@ def _metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 
 def _new_rf() -> TransformedTargetRegressor:
-    # Targets differ ~10x in scale; without standardising, the multi-output MSE criterion ignores P2O5.
+    # Targets differ in scale; without standardising, the multi-output MSE criterion under-weights small ones.
     rf = RandomForestRegressor(n_estimators=N_ESTIMATORS, max_depth=MAX_DEPTH,
                                min_samples_leaf=MIN_LEAF, random_state=SEED, n_jobs=-1)
     return TransformedTargetRegressor(regressor=rf, transformer=StandardScaler())
@@ -104,18 +102,19 @@ def _new_rf() -> TransformedTargetRegressor:
 
 def train_and_save() -> dict:
     started = time.time()
-    df = build_dataset(load_raw())
+    df = build_dataset()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     df.to_csv(DATASET_CSV, index=False)
 
-    x, y, groups = df[FEATURE_NAMES].to_numpy(), df[TARGETS].to_numpy(), df["source_row_id"].to_numpy()
-    # Group by source row so the 3 bulk-density copies of one open-data row never straddle train/test.
-    tr, te = next(GroupShuffleSplit(n_splits=1, test_size=0.20, random_state=SEED).split(x, y, groups))
-    rf = _new_rf().fit(x[tr], y[tr])
-    holdout = _metrics(y[te], rf.predict(x[te]))
+    x, y = df[FEATURE_NAMES].to_numpy(), df[TARGETS].to_numpy()
+    # Stratify by profile so every crop/stage appears in both splits.
+    x_tr, x_te, y_tr, y_te = train_test_split(x, y, test_size=0.20, random_state=SEED,
+                                              stratify=df["crop_profile_id"])
+    rf = _new_rf().fit(x_tr, y_tr)
+    holdout = _metrics(y_te, rf.predict(x_te))
 
     folds = []
-    for f_tr, f_te in GroupKFold(n_splits=5).split(x, y, groups):
+    for f_tr, f_te in KFold(n_splits=5, shuffle=True, random_state=SEED).split(x):
         folds.append(_metrics(y[f_te], _new_rf().fit(x[f_tr], y[f_tr]).predict(x[f_te])))
     cv = {}
     for key in ["N", "P2O5", "K2O", "overall"]:
@@ -127,11 +126,19 @@ def train_and_save() -> dict:
         "model": "RandomForestRegressor (scikit-learn)",
         "hyperparameters": {"n_estimators": N_ESTIMATORS, "max_depth": MAX_DEPTH,
                             "min_samples_leaf": MIN_LEAF, "random_state": SEED},
-        "dataset": {"source_url": RAW_URL, "open_rows_used": int(df["source_row_id"].nunique()),
-                    "total_samples": int(len(df)), "train_samples": int(len(tr)),
-                    "test_samples": int(len(te)),
-                    "pairing_note": "All 2,200 real soil states are paired with each of the 9 crop profiles; one random bulk density per pair.",
-                    "targets_note": "Targets are computed by the agronomic non-linear formula, not field measurements."},
+        "dataset": {
+            "source": "Simulated Mae Hong Son soil states + DOAE/Rice Dept/LDD fertilizer rates (see docs section 7)",
+            "crops": sorted(df["crop_name"].unique().tolist()),
+            "total_samples": int(len(df)), "train_samples": int(len(x_tr)), "test_samples": int(len(x_te)),
+            "simulation_assumptions": {
+                "ph": {"mean": PH_MEAN, "sd": PH_SD, "range": PH_RANGE},
+                "p_bray_ii_mg_kg": {"median": P_BRAY_MEDIAN, "sigma": P_SIGMA, "range": P_RANGE},
+                "k_mg_kg": {"median": K_MEDIAN, "sigma": K_SIGMA, "range": K_RANGE},
+                "n_mineral_mg_kg": {"median": N_MEDIAN, "sigma": N_SIGMA, "range": N_RANGE},
+                "moisture_pct_paddy": MOISTURE_PADDY, "moisture_pct_upland": MOISTURE_UPLAND,
+            },
+            "targets_note": "Targets are computed by the agronomic non-linear formula, not field measurements.",
+        },
         "holdout_80_20": holdout,
         "cross_validation_5fold": cv,
         "feature_importance_pct": imp,

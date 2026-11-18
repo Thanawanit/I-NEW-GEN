@@ -7,104 +7,150 @@
     "random_state": 42
   },
   "dataset": {
-    "source_url": "https://raw.githubusercontent.com/Gladiator07/Harvestify/master/Data-processed/crop_recommendation.csv",
-    "open_rows_used": 2200,
-    "total_samples": 19800,
-    "train_samples": 15840,
-    "test_samples": 3960,
-    "pairing_note": "All 2,200 real soil states are paired with each of the 9 crop profiles; one random bulk density per pair.",
+    "source": "Simulated Mae Hong Son soil states + DOAE/Rice Dept/LDD fertilizer rates (see docs section 7)",
+    "crops": [
+      "ข้าว",
+      "ถั่วลายเสือ",
+      "ถั่วลิสง",
+      "ถั่วเหลือง"
+    ],
+    "total_samples": 18000,
+    "train_samples": 14400,
+    "test_samples": 3600,
+    "simulation_assumptions": {
+      "ph": {
+        "mean": 5.8,
+        "sd": 0.6,
+        "range": [
+          4.5,
+          7.2
+        ]
+      },
+      "p_bray_ii_mg_kg": {
+        "median": 9.0,
+        "sigma": 0.8,
+        "range": [
+          1.0,
+          60.0
+        ]
+      },
+      "k_mg_kg": {
+        "median": 35.0,
+        "sigma": 0.7,
+        "range": [
+          5.0,
+          150.0
+        ]
+      },
+      "n_mineral_mg_kg": {
+        "median": 12.0,
+        "sigma": 0.6,
+        "range": [
+          2.0,
+          60.0
+        ]
+      },
+      "moisture_pct_paddy": [
+        50.0,
+        95.0
+      ],
+      "moisture_pct_upland": [
+        15.0,
+        75.0
+      ]
+    },
     "targets_note": "Targets are computed by the agronomic non-linear formula, not field measurements."
   },
   "holdout_80_20": {
     "N": {
-      "r2": 0.9957907150545909,
-      "rmse": 0.13093537159393,
-      "mae": 0.07857890047753807
+      "r2": 0.992940109678253,
+      "rmse": 0.053585282560946336,
+      "mae": 0.029562321266501632
     },
     "P2O5": {
-      "r2": 0.9928333536539053,
-      "rmse": 0.021344313587198682,
-      "mae": 0.005440548166671687
+      "r2": 0.9931788542124255,
+      "rmse": 0.08295386458885728,
+      "mae": 0.043662833393741544
     },
     "K2O": {
-      "r2": 0.998675432306726,
-      "rmse": 0.10278177844681571,
-      "mae": 0.060143687316069706
+      "r2": 0.9886769003968452,
+      "rmse": 0.04813236230612309,
+      "mae": 0.022638033806449298
     },
     "overall": {
-      "r2": 0.9957665003384074,
-      "rmse": 0.09689125388399702,
-      "mae": 0.048054378653426516
+      "r2": 0.9915986214291749,
+      "rmse": 0.06342830718885384,
+      "mae": 0.03195439615556376
     }
   },
   "cross_validation_5fold": {
     "N": {
       "r2": {
-        "mean": 0.9958029061396448,
-        "std": 0.0001374884362569274
+        "mean": 0.9932368889169909,
+        "std": 0.00036847258891653056
       },
       "rmse": {
-        "mean": 0.13127901574040143,
-        "std": 0.0023228082621578445
+        "mean": 0.05247989691928913,
+        "std": 0.0009754494712385979
       },
       "mae": {
-        "mean": 0.07742151210372415,
-        "std": 0.0009804154327121733
+        "mean": 0.02929958330122085,
+        "std": 0.0008574156372847505
       }
     },
     "P2O5": {
       "r2": {
-        "mean": 0.9922992447176708,
-        "std": 0.0006096794475977592
+        "mean": 0.9932756910812502,
+        "std": 0.0004489063809264289
       },
       "rmse": {
-        "mean": 0.022175288729995628,
-        "std": 0.000702443262031981
+        "mean": 0.08307522127516428,
+        "std": 0.0028283357023243545
       },
       "mae": {
-        "mean": 0.005724970892466657,
-        "std": 0.0001556621229117684
+        "mean": 0.044717627805140936,
+        "std": 0.001213087774712947
       }
     },
     "K2O": {
       "r2": {
-        "mean": 0.9987706656520736,
-        "std": 5.1848914722375436e-05
+        "mean": 0.9886517396774291,
+        "std": 0.0006595416676332979
       },
       "rmse": {
-        "mean": 0.09918660439857659,
-        "std": 0.0021200744653528886
+        "mean": 0.04768717213617894,
+        "std": 0.0013308035380717176
       },
       "mae": {
-        "mean": 0.05977328326870842,
-        "std": 0.00046185342171745775
+        "mean": 0.021980689709658323,
+        "std": 0.0007648930507821604
       }
     },
     "overall": {
       "r2": {
-        "mean": 0.9956242721697967,
-        "std": 0.00023525066247187727
+        "mean": 0.9917214398918901,
+        "std": 0.0003472096428577296
       },
       "rmse": {
-        "mean": 0.09585847867746576,
-        "std": 0.0016068264343409456
+        "mean": 0.06306841825927886,
+        "std": 0.0015857946812431719
       },
       "mae": {
-        "mean": 0.0476399220882998,
-        "std": 0.0004529167579544277
+        "mean": 0.03199930027200647,
+        "std": 0.0008414441870848597
       }
     }
   },
   "feature_importance_pct": {
-    "crop_profile_id": 49.95,
-    "root_depth_m": 12.79,
-    "bulk_density_g_cm3": 0.18,
-    "soil_n_mg_kg": 11.22,
-    "soil_p_mg_kg": 23.38,
-    "soil_k_mg_kg": 2.07,
-    "ph_value": 0.18,
-    "moisture_pct": 0.14,
-    "exg_green_pct": 0.09
+    "crop_profile_id": 34.31,
+    "root_depth_m": 27.34,
+    "bulk_density_g_cm3": 0.13,
+    "soil_n_mg_kg": 6.19,
+    "soil_p_mg_kg": 11.39,
+    "soil_k_mg_kg": 20.33,
+    "ph_value": 0.13,
+    "moisture_pct": 0.06,
+    "exg_green_pct": 0.12
   },
-  "training_seconds": 16.3
+  "training_seconds": 13.6
 }

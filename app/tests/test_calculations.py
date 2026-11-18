@@ -139,23 +139,24 @@ class TestCalculations(unittest.TestCase):
     def test_random_forest_model_accuracy_and_prediction(self) -> None:
         bundle = get_or_train_rf_model()
         self.assertGreater(bundle.r2_score_val, 0.90)
-        self.assertEqual(bundle.sample_count, 19800)
+        self.assertEqual(bundle.sample_count, 18000)
         self.assertEqual(len(bundle.feature_importances_pct), 9)
 
         pred = predict_rf_nutrient_deficit(
-            crop_profile_id=2,
-            root_depth_m=0.25,
+            crop_profile_id=1,
+            root_depth_m=0.15,
             bulk_density_g_cm3=1.35,
-            measured_n_mg_kg=15.0,
-            measured_p_mg_kg=5.0,
-            measured_k_mg_kg=60.0,
+            measured_n_mg_kg=5.0,
+            measured_p_mg_kg=2.0,
+            measured_k_mg_kg=20.0,
             ph_value=6.0,
-            moisture_pct=45.0,
+            moisture_pct=70.0,
             exg_green_pct=55.0,
             area_m2=100.0,
         )
-        self.assertGreater(pred["rf_deficits_g"]["n"], 300.0)
-        self.assertGreater(pred["rf_deficits_g"]["p2o5"], 30.0)
+        # Rice stage 1 target N 2.25 / P2O5 2.81 g/m2 on a nutrient-poor soil -> ~180 g N, ~260 g P2O5 per 100 m2
+        self.assertGreater(pred["rf_deficits_g"]["n"], 120.0)
+        self.assertGreater(pred["rf_deficits_g"]["p2o5"], 150.0)
         self.assertAlmostEqual(sum(pred["rf_demo_volumes_ml"].values()), 200.0, places=1)
 
 
@@ -180,7 +181,7 @@ class TestFlaskAPI(unittest.TestCase):
         crops_resp = self.client.get("/api/crops")
         self.assertEqual(crops_resp.status_code, 200)
         crops = crops_resp.get_json()["crops"]
-        self.assertEqual(len(crops), 9)
+        self.assertEqual(len(crops), 12)
 
         # 2. Save plot & compute tabletop waypoints
         plot_resp = self.client.post(
@@ -205,7 +206,7 @@ class TestFlaskAPI(unittest.TestCase):
                 "calculated_area_m2": 2500.0,
                 "confirmed_area_m2": 2400.0,
                 "soil_type": "loam",
-                "crop_profile_id": crops[1]["id"],
+                "crop_profile_id": crops[0]["id"],
             },
         )
         self.assertEqual(plot_resp.status_code, 201)
@@ -258,7 +259,7 @@ class TestFlaskAPI(unittest.TestCase):
             json={
                 "plot_id": plot_id,
                 "mode": "live",
-                "crop_profile_id": crops[1]["id"],
+                "crop_profile_id": crops[0]["id"],
                 "confirmed_area_m2": 2400.0,
                 "soil_type": "loam",
             },
@@ -270,7 +271,7 @@ class TestFlaskAPI(unittest.TestCase):
             json={
                 "plot_id": plot_id,
                 "mode": "sim",
-                "crop_profile_id": crops[1]["id"],
+                "crop_profile_id": crops[0]["id"],
                 "confirmed_area_m2": 2400.0,
                 "soil_type": "loam",
                 "exg_green_pct": 52.0,
@@ -284,7 +285,7 @@ class TestFlaskAPI(unittest.TestCase):
 
         ml_metrics_resp = self.client.get("/api/ml/metrics")
         self.assertEqual(ml_metrics_resp.status_code, 200)
-        self.assertEqual(ml_metrics_resp.get_json()["training_samples"], 19800)
+        self.assertEqual(ml_metrics_resp.get_json()["training_samples"], 18000)
 
         # Real hardware ESP32 polling mode=live must NOT pick up SIM jobs
         live_cmd_resp = self.client.get("/api/mixer/command?mode=live")
