@@ -421,13 +421,24 @@ function initMap() {
   }
 
   mapInstance = L.map("field-map").setView(khunYuamCoords, 15);
-  L.tileLayer(
+  const esriSatLayer = L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     {
       attribution: "Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics",
-      maxZoom: 19,
+      maxNativeZoom: 17,
+      maxZoom: 20,
     }
   ).addTo(mapInstance);
+
+  const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "&copy; OpenStreetMap contributors",
+    maxNativeZoom: 19,
+    maxZoom: 20,
+  });
+
+  L.control
+    .layers({ "ภาพถ่ายดาวเทียม (Esri)": esriSatLayer, "แผนที่ถนน (OpenStreetMap)": osmLayer })
+    .addTo(mapInstance);
 
   drawnItems = new L.FeatureGroup();
   mapInstance.addLayer(drawnItems);
