@@ -190,8 +190,10 @@
             </div>
             <div class="action-strip spaced-top">
               <button id="btn-focus-khunyuam" type="button" class="btn btn-secondary btn-sm">ไปยังพื้นที่ อ.ขุนยวม</button>
-              <button id="btn-draw-polygon" type="button" class="btn btn-primary btn-sm">วาดขอบเขตแปลง (Polygon)</button>
-              <button id="btn-clear-polygon" type="button" class="btn btn-ghost btn-sm">ล้างเส้นขอบเขต</button>
+              <button id="btn-draw-rect" type="button" class="btn btn-primary btn-sm">วาดแปลงสี่เหลี่ยม</button>
+              <button id="btn-draw-polygon" type="button" class="btn btn-primary btn-sm">วาดแปลงหลายเหลี่ยม</button>
+              <button id="btn-edit-polygon" type="button" class="btn btn-secondary btn-sm">แก้ไขมุมแปลง</button>
+              <button id="btn-clear-polygon" type="button" class="btn btn-ghost btn-sm">ลบเส้นแปลง</button>
             </div>
           </div>
 
@@ -207,10 +209,20 @@
               </div>
             </div>
 
+            <div class="map-toolbar">
+              <div class="map-toolbar-group">
+                <button id="btn-map-zoom-in" type="button" class="btn btn-secondary btn-sm">ขยายเข้า (+)</button>
+                <button id="btn-map-zoom-out" type="button" class="btn btn-secondary btn-sm">ย่อออก (−)</button>
+              </div>
+              <button id="btn-toggle-map-layer" type="button" class="btn btn-secondary btn-sm">
+                สลับแผนที่: ภาพดาวเทียม
+              </button>
+            </div>
+
             <div class="map-frame">
               <div id="field-map" class="field-map" aria-label="แผนที่ภาพถ่ายดาวเทียมสำหรับวาดขอบเขตแปลง"></div>
               <div id="map-empty-hint" class="map-overlay-hint">
-                กดปุ่ม "วาดขอบเขตแปลง (Polygon)" ด้านบน เพื่อคลิกกำหนดมุมแปลงบนภาพถ่ายดาวเทียม
+                กดปุ่ม "วาดแปลงสี่เหลี่ยม" หรือ "วาดแปลงหลายเหลี่ยม" ด้านบน เพื่อกำหนดขอบเขตแปลงบนแผนที่
               </div>
             </div>
 

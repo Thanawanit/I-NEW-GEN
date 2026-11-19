@@ -410,7 +410,28 @@ function updateProgressAndSummary() {
 
 let mapInstance = null;
 let drawnItems = null;
-let drawControl = null;
+let activeEditHandler = null;
+let isEditingPolygon = false;
+let currentMapMode = "sat";
+
+function applyThaiDrawLocal() {
+  if (!L.drawLocal) return;
+  L.drawLocal.draw.handlers.polygon.tooltip = {
+    start: "คลิกบนแผนที่เพื่อเริ่มวางมุมแรกของแปลง",
+    cont: "คลิกวางมุมถัดไปเรื่อยๆ ตามขอบเขตแปลง",
+    end: "คลิกที่จุดแรกอีกครั้ง (หรือดับเบิลคลิก) เพื่อปิดรูปแปลง",
+  };
+  L.drawLocal.draw.handlers.rectangle.tooltip = {
+    start: "คลิกค้างแล้วลากบนแผนที่เพื่อวาดแปลงสี่เหลี่ยม",
+  };
+  L.drawLocal.draw.handlers.simpleshape.tooltip = {
+    end: "ปล่อยเมาส์เพื่อสร้างแปลงสี่เหลี่ยม",
+  };
+  L.drawLocal.edit.handlers.edit.tooltip = {
+    text: "ลากจุดสีขาวเพื่อขยับมุมแปลง เสร็จแล้วกดปุ่ม 'บันทึกจุดมุมที่แก้'",
+    subtext: "",
+  };
+}
 
 function initMap() {
   const khunYuamCoords = [18.8396, 97.9268];
@@ -420,7 +441,9 @@ function initMap() {
     return;
   }
 
-  mapInstance = L.map("field-map").setView(khunYuamCoords, 15);
+  applyThaiDrawLocal();
+
+  mapInstance = L.map("field-map", { zoomControl: false }).setView(khunYuamCoords, 15);
   const esriSatLayer = L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     {
@@ -436,25 +459,18 @@ function initMap() {
     maxZoom: 20,
   });
 
-  L.control
-    .layers({ "ภาพถ่ายดาวเทียม (Esri)": esriSatLayer, "แผนที่ถนน (OpenStreetMap)": osmLayer })
-    .addTo(mapInstance);
-
   drawnItems = new L.FeatureGroup();
   mapInstance.addLayer(drawnItems);
 
-  drawControl = new L.Control.Draw({
-    edit: { featureGroup: drawnItems },
-    draw: {
-      polygon: { allowIntersection: false, showArea: true },
-      polyline: false,
-      rectangle: true,
-      circle: false,
-      marker: false,
-      circlemarker: false,
-    },
+  const polygonDrawer = new L.Draw.Polygon(mapInstance, {
+    allowIntersection: false,
+    showArea: true,
+    shapeOptions: { color: "#15803d", weight: 3 },
   });
-  mapInstance.addControl(drawControl);
+  const rectDrawer = new L.Draw.Rectangle(mapInstance, {
+    showArea: true,
+    shapeOptions: { color: "#15803d", weight: 3 },
+  });
 
   mapInstance.on(L.Draw.Event.CREATED, (event) => {
     drawnItems.clearLayers();
@@ -471,11 +487,71 @@ function initMap() {
     mapInstance.setView(khunYuamCoords, 16);
   });
 
+  document.getElementById("btn-map-zoom-in").addEventListener("click", () => {
+    mapInstance.zoomIn();
+  });
+
+  document.getElementById("btn-map-zoom-out").addEventListener("click", () => {
+    mapInstance.zoomOut();
+  });
+
+  document.getElementById("btn-toggle-map-layer").addEventListener("click", (e) => {
+    if (currentMapMode === "sat") {
+      mapInstance.removeLayer(esriSatLayer);
+      osmLayer.addTo(mapInstance);
+      currentMapMode = "osm";
+      e.currentTarget.textContent = "สลับแผนที่: แผนที่ถนน";
+    } else {
+      mapInstance.removeLayer(osmLayer);
+      esriSatLayer.addTo(mapInstance);
+      currentMapMode = "sat";
+      e.currentTarget.textContent = "สลับแผนที่: ภาพดาวเทียม";
+    }
+  });
+
+  document.getElementById("btn-draw-rect").addEventListener("click", () => {
+    if (isEditingPolygon && activeEditHandler) {
+      activeEditHandler.disable();
+      isEditingPolygon = false;
+      document.getElementById("btn-edit-polygon").textContent = "แก้ไขมุมแปลง";
+    }
+    polygonDrawer.disable();
+    rectDrawer.enable();
+  });
+
   document.getElementById("btn-draw-polygon").addEventListener("click", () => {
-    new L.Draw.Polygon(mapInstance, drawControl.options.draw.polygon).enable();
+    if (isEditingPolygon && activeEditHandler) {
+      activeEditHandler.disable();
+      isEditingPolygon = false;
+      document.getElementById("btn-edit-polygon").textContent = "แก้ไขมุมแปลง";
+    }
+    rectDrawer.disable();
+    polygonDrawer.enable();
+  });
+
+  document.getElementById("btn-edit-polygon").addEventListener("click", (e) => {
+    if (drawnItems.getLayers().length === 0) return;
+    if (!isEditingPolygon) {
+      rectDrawer.disable();
+      polygonDrawer.disable();
+      activeEditHandler = new L.EditToolbar.Edit(mapInstance, { featureGroup: drawnItems });
+      activeEditHandler.enable();
+      isEditingPolygon = true;
+      e.currentTarget.textContent = "บันทึกจุดมุมที่แก้";
+    } else if (activeEditHandler) {
+      activeEditHandler.save();
+      activeEditHandler.disable();
+      isEditingPolygon = false;
+      e.currentTarget.textContent = "แก้ไขมุมแปลง";
+    }
   });
 
   document.getElementById("btn-clear-polygon").addEventListener("click", () => {
+    if (isEditingPolygon && activeEditHandler) {
+      activeEditHandler.disable();
+      isEditingPolygon = false;
+      document.getElementById("btn-edit-polygon").textContent = "แก้ไขมุมแปลง";
+    }
     const s = currentModeState();
     s.plot.geojson = null;
     s.plot.calculatedAreaM2 = null;

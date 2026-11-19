@@ -710,6 +710,21 @@ select:disabled {
   border-top: 1px solid var(--border);
 }
 
+.map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.map-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .waypoint-preview-grid {
   display: grid;
   grid-template-columns: 340px minmax(0, 1fr);
