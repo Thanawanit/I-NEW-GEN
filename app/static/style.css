@@ -4,30 +4,33 @@
    ========================================================================== */
 
 :root {
-  --bg-canvas: #faf9f6;
+  --bg-canvas: #f7f5ee;
   --bg-surface: #ffffff;
-  --bg-subtle: #f3f1ec;
-  --bg-inset: #efede7;
+  --bg-subtle: #eff4ef;
+  --bg-inset: #e8ece4;
 
-  --text-primary: #181d1a;
-  --text-secondary: #4c5450;
-  --text-muted: #707873;
+  --text-primary: #1a241d;
+  --text-secondary: #48544c;
+  --text-muted: #6c776f;
 
-  --border: #e2e0d8;
-  --border-strong: #cbc8be;
+  --border: #dfe4da;
+  --border-strong: #c4ccbe;
 
-  --accent: #1f5e3b;
-  --accent-hover: #17492d;
-  --accent-soft: #eaf3ed;
-  --accent-border: #b8d7c2;
+  --accent: #1e6b3a;
+  --accent-hover: #15502b;
+  --accent-soft: #e6f3ea;
+  --accent-border: #b0d6bd;
 
-  --live-bg: #e7f4ec;
+  --earth-brown: #7a5c43;
+  --harvest-orange: #c96a1b;
+
+  --live-bg: #e4f4ea;
   --live-fg: #185a37;
-  --live-bd: #b3dac1;
+  --live-bd: #add9be;
 
-  --sim-bg: #fef4e2;
-  --sim-fg: #8c5000;
-  --sim-bd: #eed098;
+  --sim-bg: #fef3e4;
+  --sim-fg: #9c4f10;
+  --sim-bd: #ecc996;
 
   --manual-bg: #e9f1fb;
   --manual-fg: #1c4c85;
@@ -51,10 +54,10 @@
 
   --font-sans: "IBM Plex Sans Thai", "Inter", system-ui, -apple-system, sans-serif;
   --radius-sm: 6px;
-  --radius-md: 8px;
+  --radius-md: 10px;
   --topbar-h: 64px;
-  --sidebar-w: 268px;
-  --context-w: 296px;
+  --sidebar-w: 282px;
+  --context-w: 312px;
 }
 
 *,
@@ -337,6 +340,23 @@ code {
   gap: 8px;
 }
 
+.step-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  color: var(--earth-brown);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-item.is-active .step-icon {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .step-number {
   font-size: 11.5px;
   font-weight: 600;
@@ -354,10 +374,31 @@ code {
 }
 
 .step-desc {
-  margin: 4px 0 0 23px;
-  font-size: 12px;
+  margin: 4px 0 0 36px;
+  font-size: 12.5px;
   color: var(--text-secondary);
   line-height: 1.4;
+}
+
+.monitor-card {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-top: 10px;
+}
+
+.monitor-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--earth-brown);
+  margin-bottom: 6px;
+}
+
+.btn-next-cta {
+  padding: 10px 22px;
+  font-size: 14.5px;
+  font-weight: 600;
 }
 
 .sidebar-footer {

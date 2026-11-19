@@ -40,8 +40,8 @@
           </svg>
         </div>
         <div>
-          <h1 class="brand-title">Smart Bio-Fert Operations Workspace</h1>
-          <p class="brand-subtitle">ระบบวางแผนแปลง วิเคราะห์ดิน และปรุงปุ๋ยน้ำชีวภาพเฉพาะจุดร่วมกับโดรนสำรวจ</p>
+          <h1 class="brand-title">ระบบโดรนและปุ๋ยสั่งตัดอัจฉริยะ (Smart Bio-Fert Drone) v1.5</h1>
+          <p class="brand-subtitle">Raspberry Pi 5 + Unified ESP32 • วางแผนแปลง ตรวจดิน และผสมปุ๋ยน้ำชีวภาพเฉพาะจุด</p>
         </div>
       </div>
 
@@ -49,20 +49,20 @@
         <!-- Global Strict Mode Switcher: Demo Simulator vs Live Hardware -->
         <div class="mode-switcher" role="group" aria-label="เลือกโหมดการทำงาน">
           <button id="btn-mode-sim" type="button" class="mode-btn is-active" data-mode="sim">
-            โหมดทดสอบจำลอง (Demo Simulator)
+            โหมดทดสอบจำลอง (Demo)
           </button>
           <button id="btn-mode-live" type="button" class="mode-btn" data-mode="live">
-            โหมดอุปกรณ์จริง (Live Hardware)
+            โหมดอุปกรณ์จริง (Live)
           </button>
         </div>
 
         <div class="status-chip-group">
-          <span class="status-label">Backend</span>
+          <span class="status-label">สถานะระบบ (Pi 5)</span>
           <span id="backend-status-badge" class="badge badge-nodata">NO DATA</span>
         </div>
 
         <button id="btn-open-settings" type="button" class="btn btn-secondary btn-sm">
-          ตั้งค่าสอบเทียบ
+          ตั้งค่าปั๊มและโต๊ะบิน
         </button>
       </div>
     </header>
@@ -104,47 +104,62 @@
         <nav class="step-nav" id="step-nav">
           <button type="button" class="step-item is-active" data-step="1">
             <div class="step-item-head">
-              <span class="step-number tabular-num">01</span>
-              <span class="step-name">Field Setup</span>
+              <span class="step-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              </span>
+              <span class="step-number tabular-num">ขั้นที่ 1</span>
+              <span class="step-name">เลือกแปลงที่ดิน</span>
               <span id="nav-badge-1" class="badge badge-nodata">NO DATA</span>
             </div>
-            <p class="step-desc">วาดแปลงและยืนยันพื้นที่ (ขั้นที่ 1–2)</p>
+            <p class="step-desc">วาดขอบเขตแปลงและตรวจดูพื้นที่จริง</p>
           </button>
 
           <button type="button" class="step-item" data-step="2">
             <div class="step-item-head">
-              <span class="step-number tabular-num">02</span>
-              <span class="step-name">Crop Profile</span>
+              <span class="step-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20h10"/><path d="M10 20c5.5-2.5.8-6.4 3-10"/><path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/><path d="M14.1 6a7 7 0 0 0-1.1 4c1.9-.1 3.3-.6 4.3-1.4 1-1 1.6-2.3 1.7-4.6-2.7.1-4 1-4.9 2z"/></svg>
+              </span>
+              <span class="step-number tabular-num">ขั้นที่ 2</span>
+              <span class="step-name">เลือกพืชที่ปลูก</span>
               <span id="nav-badge-2" class="badge badge-nodata">NO DATA</span>
             </div>
-            <p class="step-desc">พืช พันธุ์ และระยะเติบโต (ขั้นที่ 3)</p>
+            <p class="step-desc">ชนิดพืช สายพันธุ์ และระยะเติบโต</p>
           </button>
 
           <button type="button" class="step-item" data-step="3">
             <div class="step-item-head">
-              <span class="step-number tabular-num">03</span>
-              <span class="step-name">Field Assessment</span>
+              <span class="step-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </span>
+              <span class="step-number tabular-num">ขั้นที่ 3</span>
+              <span class="step-name">ภาพโดรน &amp; ค่าดิน</span>
               <span id="nav-badge-3" class="badge badge-nodata">NO DATA</span>
             </div>
-            <p class="step-desc">ภาพถ่าย ExG และค่าดิน (ขั้นที่ 4–6)</p>
+            <p class="step-desc">ดูความเขียวใบ (ExG) และตรวจดิน</p>
           </button>
 
           <button type="button" class="step-item" data-step="4">
             <div class="step-item-head">
-              <span class="step-number tabular-num">04</span>
-              <span class="step-name">Fertilizer Planning</span>
+              <span class="step-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 9h4"/><path d="M10 3v6l-4 9a2 2 0 0 0 1.8 3h8.4a2 2 0 0 0 1.8-3l-4-9V3"/></svg>
+              </span>
+              <span class="step-number tabular-num">ขั้นที่ 4</span>
+              <span class="step-name">ผสมปุ๋ย &amp; เช็กเค็ม</span>
               <span id="nav-badge-4" class="badge badge-nodata">NO DATA</span>
             </div>
-            <p class="step-desc">ถังหมัก สูตรปุ๋ย และผสม (ขั้นที่ 7)</p>
+            <p class="step-desc">AI คำนวณสูตร ผสมปุ๋ย และตรวจ TDS</p>
           </button>
 
           <button type="button" class="step-item" data-step="5">
             <div class="step-item-head">
-              <span class="step-number tabular-num">05</span>
-              <span class="step-name">Mission Review</span>
+              <span class="step-icon" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              </span>
+              <span class="step-number tabular-num">ขั้นที่ 5</span>
+              <span class="step-name">สั่งโดรนโปรยปุ๋ย</span>
               <span id="nav-badge-5" class="badge badge-nodata">NO DATA</span>
             </div>
-            <p class="step-desc">ตรวจสอบและโปรยปุ๋ย (ขั้นที่ 8)</p>
+            <p class="step-desc">ตรวจความพร้อมและบินพ่นสาธิต</p>
           </button>
         </nav>
 
@@ -166,22 +181,22 @@
 
           <!-- ZONE 1: GUIDANCE -->
           <div class="zone-card zone-guidance">
-            <span class="zone-tag">ส่วนคำแนะนำ</span>
+            <span class="zone-tag">คำแนะนำสำหรับเกษตรกร</span>
             <p class="zone-text">
-              กดปุ่ม <strong>"วาดขอบเขตแปลง (Polygon)"</strong> แล้วคลิกลากจุดมุมแปลงบนแผนที่ จากนั้นตรวจสอบหรือแก้ตัวเลข <strong>"พื้นที่ยืนยันใช้งานจริง"</strong> แล้วกดปุ่ม <strong>"บันทึกข้อมูลขั้นตอนนี้"</strong> ด้านล่างเพื่อสร้างผังเส้นทางบินย่อสเกล (100 × 80 ซม.)
+              วาดแปลงที่ดินของคุณบนแผนที่ด้านล่าง แล้วตรวจดูขนาดพื้นที่ให้ถูกต้องก่อนสั่งโดรนบินนะครับ (กรอบบินปลอดภัยบนโต๊ะเดโม: <strong>40 × 60 ซม.</strong> บนถาด <strong>60 × 80 ซม.</strong>)
             </p>
           </div>
 
           <!-- ZONE 2: CONTROLS & INPUTS -->
           <div class="zone-card zone-controls">
-            <span class="zone-tag">ส่วนสั่งทำงานและกรอกข้อมูล</span>
+            <span class="zone-tag">ข้อมูลแปลงที่ดิน</span>
             <div class="controls-grid">
               <div class="form-group">
-                <label for="input-plot-name">ชื่อแปลงทดสอบ</label>
+                <label for="input-plot-name">1. ตั้งชื่อแปลงที่ดิน</label>
                 <input id="input-plot-name" type="text" placeholder="เช่น แปลงสาธิต อ.ขุนยวม จุด A" value="แปลงสาธิต อ.ขุนยวม" />
               </div>
               <div class="form-group">
-                <label for="input-confirmed-area">พื้นที่ยืนยันใช้งานจริง (แก้ไขได้ — ตร.ม.)</label>
+                <label for="input-confirmed-area">2. ขนาดพื้นที่จริง (แก้ไขได้หากไม่ตรง — ตร.ม.)</label>
                 <div class="input-with-unit">
                   <input id="input-confirmed-area" type="number" min="1" step="0.1" placeholder="วาดแปลงหรือกรอกตัวเลข" class="tabular-num" />
                   <span class="unit-addon">ตร.ม.</span>
@@ -239,7 +254,7 @@
 
             <details class="disclosure-box">
               <summary class="disclosure-summary">
-                <span>ดูผังเส้นทางบินย่อสเกลบนโต๊ะ (100 × 80 ซม.)</span>
+                <span>ดูผังเส้นทางบินย่อสเกลบนโต๊ะ (กรอบบินปลอดภัย 40 × 60 ซม. บนถาด 60 × 80 ซม.)</span>
                 <span id="badge-waypoints" class="badge badge-nodata">NO DATA</span>
               </summary>
               <div class="disclosure-body">
@@ -695,7 +710,7 @@
               <li>
                 <label class="check-row">
                   <input type="checkbox" class="safety-check" />
-                  <span>เติมน้ำปุ๋ยที่ผ่านเกณฑ์ EC ปริมาตร 10–13 ml และชั่งรวมทั้งหมดแล้วไม่เกิน 25 กรัม</span>
+                  <span>เติมน้ำปุ๋ยที่ผ่านเกณฑ์ EC ปริมาตร 8–10 ml และชั่งรวมทั้งหมดแล้วไม่เกิน 25 กรัม</span>
                 </label>
               </li>
               <li>
@@ -707,7 +722,7 @@
               <li>
                 <label class="check-row">
                   <input type="checkbox" class="safety-check" />
-                  <span>วางถาดรองน้ำและเคลียร์พื้นที่โต๊ะบินปลอดภัย 100 × 80 ซม. แล้ว</span>
+                  <span>วางถาดรองน้ำและเคลียร์พื้นที่โต๊ะบินปลอดภัย 40 × 60 ซม. (บนถาด 60 × 80 ซม.) แล้ว</span>
                 </label>
               </li>
             </ul>
@@ -769,47 +784,75 @@
 
         <!-- BOTTOM ACTION BAR -->
         <footer class="bottom-bar" aria-label="แถบควบคุมขั้นตอน">
-          <button id="btn-prev-step" type="button" class="btn btn-secondary" disabled>ย้อนกลับ</button>
+          <button id="btn-prev-step" type="button" class="btn btn-secondary" disabled>กลับไปขั้นตอนก่อนหน้า</button>
           <div class="bottom-bar-right">
             <button id="btn-save-step" type="button" class="btn btn-secondary">บันทึกข้อมูลขั้นตอนนี้</button>
-            <button id="btn-next-step" type="button" class="btn btn-primary">ดำเนินการต่อ</button>
+            <button id="btn-next-step" type="button" class="btn btn-primary btn-next-cta">บันทึกและไปต่อ</button>
           </div>
         </footer>
       </main>
 
-      <!-- RIGHT CONTEXT PANEL (LIVE SUMMARY + PROVENANCE LEGEND ONLY) -->
-      <aside class="context-panel" aria-label="สรุปสถานะรวม">
+      <!-- RIGHT CONTEXT PANEL (FARMER SYSTEM MONITOR + PROVENANCE LEGEND) -->
+      <aside class="context-panel" aria-label="ตรวจความพร้อมระบบ">
         <div class="context-section">
           <div class="summary-mode-head">
-            <span class="eyebrow">สรุปสถานะโหมดปัจจุบัน</span>
+            <span class="eyebrow">ตรวจความพร้อม (System Monitor)</span>
             <span id="ctx-active-mode-badge" class="badge badge-simulated">DEMO SIMULATOR</span>
           </div>
-          <dl class="summary-dl">
-            <div class="summary-row">
-              <dt>แปลงเกษตร</dt>
-              <dd id="sum-plot">ยังไม่ได้กำหนด</dd>
-            </div>
-            <div class="summary-row">
-              <dt>พื้นที่ยืนยัน</dt>
-              <dd id="sum-area" class="tabular-num">NO DATA</dd>
-            </div>
-            <div class="summary-row">
-              <dt>พืช / ระยะ</dt>
-              <dd id="sum-crop">NO DATA</dd>
-            </div>
-            <div class="summary-row">
-              <dt>พื้นที่สีเขียว (ExG)</dt>
-              <dd id="sum-exg" class="tabular-num">NO DATA</dd>
-            </div>
-            <div class="summary-row">
-              <dt>ค่าดินล่าสุด</dt>
-              <dd id="sum-soil">NO DATA</dd>
-            </div>
-            <div class="summary-row">
-              <dt>สถานะเครื่องผสม</dt>
-              <dd id="sum-mixer">NO DATA</dd>
-            </div>
-          </dl>
+
+          <div class="monitor-card">
+            <div class="monitor-title">แปลงที่ดินและพืชเป้าหมาย</div>
+            <dl class="summary-dl">
+              <div class="summary-row">
+                <dt>แปลงเกษตร</dt>
+                <dd id="sum-plot">ยังไม่ได้กำหนด</dd>
+              </div>
+              <div class="summary-row">
+                <dt>พื้นที่ยืนยัน</dt>
+                <dd id="sum-area" class="tabular-num">NO DATA</dd>
+              </div>
+              <div class="summary-row">
+                <dt>พืช / ระยะ</dt>
+                <dd id="sum-crop">NO DATA</dd>
+              </div>
+              <div class="summary-row">
+                <dt>ความเขียวใบ (ExG)</dt>
+                <dd id="sum-exg" class="tabular-num">NO DATA</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="monitor-card">
+            <div class="monitor-title">สถานะดินปัจจุบัน</div>
+            <dl class="summary-dl">
+              <div class="summary-row">
+                <dt>ความชื้น / pH</dt>
+                <dd id="sum-soil">NO DATA</dd>
+              </div>
+              <div class="summary-row">
+                <dt>ระดับ N / P / K</dt>
+                <dd id="sum-soil-npk" class="tabular-num">NO DATA</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="monitor-card">
+            <div class="monitor-title">ถังน้ำหมัก 3 ถัง &amp; เครื่องผสม</div>
+            <dl class="summary-dl">
+              <div class="summary-row">
+                <dt>อุณหภูมิ N / P / K</dt>
+                <dd id="sum-ferm-temps" class="tabular-num">NO DATA</dd>
+              </div>
+              <div class="summary-row">
+                <dt>ความเค็ม (TDS)</dt>
+                <dd id="sum-ferm-tds" class="tabular-num">NO DATA</dd>
+              </div>
+              <div class="summary-row">
+                <dt>สถานะเครื่องผสม</dt>
+                <dd id="sum-mixer">NO DATA</dd>
+              </div>
+            </dl>
+          </div>
         </div>
 
         <div class="context-section">

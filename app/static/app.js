@@ -398,9 +398,18 @@ function updateProgressAndSummary() {
   document.getElementById("sum-exg").textContent =
     s.survey.greenPct !== null ? `${formatNum(s.survey.greenPct, 1)}% (${s.survey.provenance})` : "NO DATA";
   document.getElementById("sum-soil").textContent =
-    s.soil.moisturePct !== null
-      ? `ความชื้น ${formatNum(s.soil.moisturePct, 1)}% (${s.soil.provenance})`
+    s.soil.moisturePct !== null || s.soil.ph !== null
+      ? `ชื้น ${formatNum(s.soil.moisturePct, 1)}% • pH ${formatNum(s.soil.ph, 1)}`
       : "NO DATA";
+  document.getElementById("sum-soil-npk").textContent = s.soil.nLevel
+    ? `${s.soil.nLevel} / ${s.soil.pLevel} / ${s.soil.kLevel}`
+    : "NO DATA";
+  document.getElementById("sum-ferm-temps").textContent =
+    s.fermenter.tempN !== null
+      ? `${formatNum(s.fermenter.tempN, 1)} / ${formatNum(s.fermenter.tempP, 1)} / ${formatNum(s.fermenter.tempK, 1)} °C`
+      : "NO DATA";
+  document.getElementById("sum-ferm-tds").textContent =
+    s.fermenter.mixerTds !== null ? `${formatNum(s.fermenter.mixerTds, 0)} ppm` : "NO DATA";
   document.getElementById("sum-mixer").textContent = s.mixer.pumpSec
     ? `คำนวณแล้ว (${s.mixer.provenance})`
     : "NO DATA";
