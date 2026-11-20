@@ -14,7 +14,7 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
-from app import create_app  # noqa: E402
+from app import _persist_soil_reading, create_app  # noqa: E402
 from calculations import (  # noqa: E402
     analyze_green_coverage,
     calculate_ec_dilution,
@@ -22,7 +22,14 @@ from calculations import (  # noqa: E402
     calculate_nutrient_deficit,
     project_latlng_to_waypoints,
 )
+from hardware_bridge import (  # noqa: E402
+    RA02,
+    get_soil_receiver_status,
+    parse_soil_packet,
+    process_incoming_soil_text,
+)
 from ml_model import get_or_train_rf_model, predict_rf_nutrient_deficit  # noqa: E402
+from unittest import mock  # noqa: E402
 
 
 class TestCalculations(unittest.TestCase):
@@ -356,6 +363,103 @@ class TestFlaskAPI(unittest.TestCase):
         stop_resp = self.client.post("/api/mixer/stop-live")
         self.assertEqual(stop_resp.status_code, 200)
         self.assertFalse(stop_resp.get_json()["hw_status"]["is_running"])
+
+    def test_lora_ra02_packet_decode_and_live_persistence(self) -> None:
+        parsed = parse_soil_packet("pH:6.4,N:18,P:11,K:42,Moist:48,EC:350")
+        self.assertEqual(parsed, {"ph": 6.4, "n": 18.0, "p": 11.0, "k": 42.0, "moisture_pct": 48.0, "ec_us_cm": 350.0})
+
+        payload = b"pH:6.7,N:24,P:14,K:55"
+        fifo_iter = iter(payload)
+
+        class _FakeSpi:
+            max_speed_hz = 0
+            mode = 0
+            no_cs = False
+
+            def open(self, bus: int, dev: int) -> None:
+                pass
+
+            def close(self) -> None:
+                pass
+
+            def xfer2(self, frame: list[int]) -> list[int]:
+                cmd = frame[0]
+                if cmd & 0x80:
+                    return [0, 0]
+                addr = cmd & 0x7F
+                if addr == 0x42:  # RegVersion
+                    return [0, 0x12]
+                if addr == 0x12:  # RegIrqFlags -> RxDone
+                    return [0, 0x40]
+                if addr == 0x13:  # RegRxNbBytes
+                    return [0, len(payload)]
+                if addr == 0x00:  # RegFifo
+                    return [0, next(fifo_iter)]
+                if addr == 0x1A:  # RSSI
+                    return [0, 100]
+                if addr == 0x19:  # SNR
+                    return [0, 32]
+                return [0, 0]
+
+        fake_spidev = mock.Mock()
+        fake_spidev.SpiDev.return_value = _FakeSpi()
+        with mock.patch("hardware_bridge.spidev", fake_spidev):
+            radio = RA02()
+            radio.start_receive()
+            raw_bytes = radio.read_packet()
+            rssi = radio.get_packet_rssi()
+            snr = radio.get_packet_snr()
+            radio.close()
+
+        self.assertEqual(raw_bytes, payload)
+        self.assertEqual(rssi, -64)
+        self.assertEqual(snr, 8.0)
+
+        plot_resp = self.client.post(
+            "/api/plots",
+            json={
+                "name": "Live LoRa Plot",
+                "mode": "live",
+                "polygon_geojson": {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[98.98, 18.78], [98.981, 18.78], [98.981, 18.781], [98.98, 18.781], [98.98, 18.78]]],
+                    },
+                },
+                "confirmed_area_m2": 500.0,
+            },
+        )
+        plot_id = plot_resp.get_json()["plot_id"]
+
+        process_incoming_soil_text(
+            raw_bytes.decode("utf-8"),
+            source="lora_ra02",
+            rssi=rssi,
+            snr=snr,
+            on_soil_packet=lambda vals, src, _raw: _persist_soil_reading(
+                db_path=self.app.config["DB_PATH"],
+                plot_id=None,
+                mode="live",
+                source=src,
+                values=vals,
+            ),
+        )
+
+        latest = self.client.get(f"/api/soil/latest/{plot_id}?mode=live").get_json()["reading"]
+        self.assertEqual(latest["source"], "lora_ra02")
+        self.assertAlmostEqual(latest["nitrogen_mg_kg"], 24.0)
+        self.assertAlmostEqual(latest["ph_value"], 6.7)
+
+        hw_soil = self.client.get("/api/soil/hw-status").get_json()
+        self.assertEqual(hw_soil["last_source"], "lora_ra02")
+        self.assertEqual(hw_soil["lora_rssi"], -64)
+        self.assertGreaterEqual(hw_soil["packet_count"], 1)
+
+        hw_mixer = self.client.get("/api/mixer/hw-status").get_json()
+        self.assertIn("soil_receiver", hw_mixer)
+        self.assertEqual(hw_mixer["soil_receiver"]["last_source"], "lora_ra02")
+        self.assertEqual(get_soil_receiver_status()["lora_snr"], 8.0)
 
 
 if __name__ == "__main__":

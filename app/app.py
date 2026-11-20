@@ -33,8 +33,10 @@ from database import get_connection, init_db  # noqa: E402
 from hardware_bridge import (  # noqa: E402
     force_stop_all_pumps,
     get_pump_hardware_status,
+    get_soil_receiver_status,
     parse_soil_packet,
     start_sequential_dispense,
+    start_soil_receivers,
 )
 from ml_model import (  # noqa: E402
     FEATURE_LABELS_TH,
@@ -53,10 +55,83 @@ def _normalize_mode(value: Any, simulated_flag: Any = False) -> str:
     return "live"
 
 
+def _persist_soil_reading(
+    db_path: Path,
+    plot_id: int | None,
+    mode: str,
+    source: str,
+    values: dict[str, Any],
+) -> dict[str, Any]:
+    """Insert a soil reading while preserving prior partial NPK or moisture fields."""
+    with get_connection(db_path) as conn:
+        resolved_plot_id = plot_id
+        if resolved_plot_id is None:
+            latest_plot = conn.execute(
+                "SELECT id FROM plots WHERE mode = ? ORDER BY id DESC LIMIT 1",
+                (mode,),
+            ).fetchone()
+            resolved_plot_id = int(latest_plot["id"]) if latest_plot else 1
+
+        prev_npk = conn.execute(
+            """
+            SELECT nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg, ph_value
+            FROM soil_readings
+            WHERE plot_id = ? AND mode = ? AND nitrogen_mg_kg IS NOT NULL
+            ORDER BY id DESC LIMIT 1
+            """,
+            (resolved_plot_id, mode),
+        ).fetchone()
+        prev_moist = conn.execute(
+            """
+            SELECT moisture_pct, ec_us_cm
+            FROM soil_readings
+            WHERE plot_id = ? AND mode = ? AND moisture_pct IS NOT NULL
+            ORDER BY id DESC LIMIT 1
+            """,
+            (resolved_plot_id, mode),
+        ).fetchone()
+
+        n_val = values.get("n") if values.get("n") is not None else (prev_npk["nitrogen_mg_kg"] if prev_npk else None)
+        p_val = values.get("p") if values.get("p") is not None else (prev_npk["phosphorus_mg_kg"] if prev_npk else None)
+        k_val = values.get("k") if values.get("k") is not None else (prev_npk["potassium_mg_kg"] if prev_npk else None)
+        ph_val = values.get("ph") if values.get("ph") is not None else (prev_npk["ph_value"] if prev_npk else None)
+        moist_val = (
+            values.get("moisture_pct")
+            if values.get("moisture_pct") is not None
+            else (prev_moist["moisture_pct"] if prev_moist else None)
+        )
+        ec_val = (
+            values.get("ec_us_cm")
+            if values.get("ec_us_cm") is not None
+            else (prev_moist["ec_us_cm"] if prev_moist else None)
+        )
+
+        conn.execute(
+            """
+            INSERT INTO soil_readings (
+                plot_id, nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg,
+                ph_value, moisture_pct, ec_us_cm, source, mode
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (resolved_plot_id, n_val, p_val, k_val, ph_val, moist_val, ec_val, source, mode),
+        )
+        conn.commit()
+
+    return {
+        "n": n_val,
+        "p": p_val,
+        "k": k_val,
+        "ph": ph_val,
+        "moisture_pct": moist_val,
+        "ec_us_cm": ec_val,
+    }
+
+
 def create_app(
     db_path: Path = DB_PATH,
     override_path: Path = OVERRIDE_PATH,
     upload_dir: Path = UPLOAD_DIR,
+    start_hw_receivers: bool = False,
 ) -> Flask:
     """Create and configure the Flask application instance."""
     flask_app = Flask(
@@ -69,6 +144,17 @@ def create_app(
     flask_app.config["UPLOAD_DIR"] = upload_dir
 
     init_db(db_path)
+
+    if start_hw_receivers:
+        start_soil_receivers(
+            on_soil_packet=lambda parsed, src, _raw: _persist_soil_reading(
+                db_path=db_path,
+                plot_id=None,
+                mode="live",
+                source=src,
+                values=parsed,
+            )
+        )
 
     @flask_app.get("/")
     def index() -> str:
@@ -150,69 +236,35 @@ def create_app(
         raw_packet = parse_soil_packet(str(data.get("raw") or ""))
         source = "simulated" if is_sim else str(data.get("source") or ("arduino_rs485" if raw_packet else "live_sensor"))
 
-        in_n = data.get("n") if data.get("n") is not None else raw_packet.get("n")
-        in_p = data.get("p") if data.get("p") is not None else raw_packet.get("p")
-        in_k = data.get("k") if data.get("k") is not None else raw_packet.get("k")
-        in_ph = data.get("ph") if data.get("ph") is not None else raw_packet.get("ph")
-        in_moist = data.get("moisture_pct") if data.get("moisture_pct") is not None else raw_packet.get("moisture_pct")
-        in_ec = data.get("ec_us_cm") if data.get("ec_us_cm") is not None else raw_packet.get("ec_us_cm")
-
-        with get_connection(db_path) as conn:
-            prev_npk = conn.execute(
-                """
-                SELECT nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg, ph_value
-                FROM soil_readings
-                WHERE plot_id = ? AND mode = ? AND nitrogen_mg_kg IS NOT NULL
-                ORDER BY id DESC LIMIT 1
-                """,
-                (plot_id, mode),
-            ).fetchone()
-            prev_moist = conn.execute(
-                """
-                SELECT moisture_pct, ec_us_cm
-                FROM soil_readings
-                WHERE plot_id = ? AND mode = ? AND moisture_pct IS NOT NULL
-                ORDER BY id DESC LIMIT 1
-                """,
-                (plot_id, mode),
-            ).fetchone()
-
-            n_val = in_n if in_n is not None else (prev_npk["nitrogen_mg_kg"] if prev_npk else None)
-            p_val = in_p if in_p is not None else (prev_npk["phosphorus_mg_kg"] if prev_npk else None)
-            k_val = in_k if in_k is not None else (prev_npk["potassium_mg_kg"] if prev_npk else None)
-            ph_val = in_ph if in_ph is not None else (prev_npk["ph_value"] if prev_npk else None)
-            moist_val = in_moist if in_moist is not None else (prev_moist["moisture_pct"] if prev_moist else None)
-            ec_val = in_ec if in_ec is not None else (prev_moist["ec_us_cm"] if prev_moist else None)
-
-            conn.execute(
-                """
-                INSERT INTO soil_readings (
-                    plot_id, nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg,
-                    ph_value, moisture_pct, ec_us_cm, source, mode
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    plot_id,
-                    n_val,
-                    p_val,
-                    k_val,
-                    ph_val,
-                    moist_val,
-                    ec_val,
-                    source,
-                    mode,
-                ),
-            )
-            conn.commit()
+        values = {
+            "n": data.get("n") if data.get("n") is not None else raw_packet.get("n"),
+            "p": data.get("p") if data.get("p") is not None else raw_packet.get("p"),
+            "k": data.get("k") if data.get("k") is not None else raw_packet.get("k"),
+            "ph": data.get("ph") if data.get("ph") is not None else raw_packet.get("ph"),
+            "moisture_pct": data.get("moisture_pct") if data.get("moisture_pct") is not None else raw_packet.get("moisture_pct"),
+            "ec_us_cm": data.get("ec_us_cm") if data.get("ec_us_cm") is not None else raw_packet.get("ec_us_cm"),
+        }
+        saved_soil = _persist_soil_reading(
+            db_path=db_path,
+            plot_id=plot_id,
+            mode=mode,
+            source=source,
+            values=values,
+        )
 
         return jsonify(
             {
                 "ok": True,
                 "mode": mode,
                 "provenance": "SIMULATED" if is_sim else "LIVE",
-                "soil": {"n": n_val, "p": p_val, "k": k_val, "ph": ph_val, "moisture_pct": moist_val, "ec_us_cm": ec_val},
+                "soil": saved_soil,
             }
         )
+
+    @flask_app.get("/api/soil/hw-status")
+    def get_soil_hw_status() -> Any:
+        """Return live LoRa RA-02 and USB Serial soil receiver diagnostics."""
+        return jsonify(get_soil_receiver_status())
 
     @flask_app.post("/api/soil/manual")
     def save_soil_manual() -> Any:
@@ -573,8 +625,10 @@ def create_app(
 
     @flask_app.get("/api/mixer/hw-status")
     def get_mixer_hw_status() -> Any:
-        """Return current Raspberry Pi GPIO pump status."""
-        return jsonify(get_pump_hardware_status())
+        """Return current Raspberry Pi GPIO pump and LoRa/USB soil receiver status."""
+        status = get_pump_hardware_status()
+        status["soil_receiver"] = get_soil_receiver_status()
+        return jsonify(status)
 
     @flask_app.post("/api/mixer/status")
     def update_mixer_status() -> Any:
@@ -771,5 +825,5 @@ def create_app(
 
 
 if __name__ == "__main__":
-    app = create_app()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app = create_app(start_hw_receivers=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
