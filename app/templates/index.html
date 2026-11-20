@@ -82,14 +82,12 @@
       <span id="mode-strip-text">โหมดทดสอบจำลอง — ข้อมูลทั้งหมดแยกจากโหมดอุปกรณ์จริง 100%</span>
     </div>
 
-    <!-- Top-Left Extreme Stage Status Box + Back Button -->
+    <!-- Top-Left Extreme Minimal Stage Pill -->
     <div class="stage-status-bar">
       <div class="stage-status-box">
+        <span class="stage-status-dot" aria-hidden="true"></span>
         <strong id="stage-subtitle">ขั้นที่ 1 (ตั้งชื่อแปลงที่ดิน)</strong>
       </div>
-      <button id="btn-stage-back" type="button" class="btn btn-secondary btn-sm hidden">
-        ← ย้อนกลับขั้นตอนก่อนหน้า
-      </button>
     </div>
 
     <!-- ==================== SINGLE-STAGE FOCUSED WORKSPACE ==================== -->
@@ -701,6 +699,16 @@
           </button>
         </div>
       </section>
+
+      <!-- Ergonomic Bottom-Left Back Navigation -->
+      <div class="stage-bottom-nav">
+        <button id="btn-stage-back" type="button" class="btn btn-back-ergo hidden">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+          <span>ย้อนกลับขั้นตอนก่อนหน้า</span>
+        </button>
+      </div>
 
     </main>
 
