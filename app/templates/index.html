@@ -82,12 +82,18 @@
       <span id="mode-strip-text">โหมดทดสอบจำลอง — ข้อมูลทั้งหมดแยกจากโหมดอุปกรณ์จริง 100%</span>
     </div>
 
-    <!-- ==================== SINGLE-STAGE FOCUSED WORKSPACE ==================== -->
-    <main class="stage-viewport">
-      <!-- Top-Left Clean Stage Title Text (No Box) -->
-      <div class="stage-status-label">
+    <!-- Top-Left Extreme Stage Status Box + Back Button -->
+    <div class="stage-status-bar">
+      <div class="stage-status-box">
         <strong id="stage-subtitle">ขั้นที่ 1 (ตั้งชื่อแปลงที่ดิน)</strong>
       </div>
+      <button id="btn-stage-back" type="button" class="btn btn-secondary btn-sm hidden">
+        ← ย้อนกลับขั้นตอนก่อนหน้า
+      </button>
+    </div>
+
+    <!-- ==================== SINGLE-STAGE FOCUSED WORKSPACE ==================== -->
+    <main class="stage-viewport">
 
       <!-- STAGE 0: LANDING — PLOT NAME ONLY -->
       <section class="stage-card stage-centered" data-stage="0">
@@ -226,27 +232,28 @@
         </div>
       </section>
 
-      <!-- STAGE 3: DRONE SURVEY & GREEN COVERAGE (BEFORE / AFTER + IMAGE UPLOAD IN BOTH MODES) -->
+      <!-- STAGE 3: DRONE SURVEY & GREEN COVERAGE (BEFORE / AFTER + SINGLE IMAGE UPLOAD BESIDE SURVEY BTN) -->
       <section class="stage-card stage-centered hidden" data-stage="3">
         <div class="survey-stage-box">
           <div id="survey-launch-wrap" class="clean-center-box survey-launch-spaced">
             <h2 class="survey-big-heading">สำรวจความเขียวของแปลงด้วยโดรน</h2>
-            <button id="btn-fly-survey" type="button" class="btn btn-primary btn-hero">
-              ยืนยันให้โดรนบินสำรวจ?
-            </button>
+            <p id="survey-live-fallback-msg" class="fallback-msg hidden">
+              ยังไม่ได้เชื่อมต่อ SDK โดรน Wi-Fi อัตโนมัติ — กด "เพิ่มรูปภาพ" ด้านล่างเพื่อวิเคราะห์ความเขียวแทนได้ทันที
+            </p>
+            <div class="action-row-center">
+              <button id="btn-fly-survey" type="button" class="btn btn-primary btn-hero">
+                ยืนยันให้โดรนบินสำรวจ?
+              </button>
+              <label for="input-survey-image" class="btn btn-secondary btn-hero file-btn-label">
+                เพิ่มรูปภาพ
+              </label>
+              <input id="input-survey-image" type="file" accept="image/*" class="visually-hidden" />
+            </div>
           </div>
 
           <div id="survey-status-wrap" class="live-status-pill hidden" role="status">
             <span class="pulse-dot" aria-hidden="true"></span>
             <span id="survey-status-text">กำลังเตรียมส่งคำสั่งให้โดรน...</span>
-          </div>
-
-          <div id="survey-live-fallback" class="clean-center-box hidden">
-            <p class="fallback-msg">ยังไม่ได้เชื่อมต่อ SDK โดรน Wi-Fi อัตโนมัติ — เลือกภาพถ่ายแปลงเพื่อวิเคราะห์ความเขียว</p>
-            <label for="input-survey-image-fallback" class="btn btn-primary btn-lg file-btn-label">
-              เพิ่มรูปภาพแปลง
-            </label>
-            <input id="input-survey-image-fallback" type="file" accept="image/*" class="visually-hidden" />
           </div>
 
           <div id="survey-result-wrap" class="survey-compare-wrap hidden">
@@ -271,10 +278,6 @@
             </div>
 
             <div class="center-cta-row">
-              <label for="input-survey-image-both" class="btn btn-secondary btn-lg file-btn-label">
-                เพิ่มรูปภาพ
-              </label>
-              <input id="input-survey-image-both" type="file" accept="image/*" class="visually-hidden" />
               <button id="btn-survey-accept" type="button" class="btn btn-primary btn-lg">
                 ตกลง
               </button>
@@ -423,6 +426,9 @@
                   <strong id="conv-mae" class="tabular-num">— g/m²</strong>
                 </div>
               </div>
+              <p id="calc-sufficient-note" class="calc-sufficient-note hidden">
+                ดินในแปลงมีธาตุอาหารเพียงพอตามเกณฑ์ของระยะเติบโตนี้แล้ว (ไม่ต้องเติมปุ๋ยเพิ่ม)
+              </p>
             </div>
           </div>
 
@@ -446,7 +452,7 @@
               </div>
 
               <div id="countdown-banner" class="countdown-box hidden">
-                <span>กรุณานำกระบอกผสมมาวางใต้หัวจ่าย — เริ่มจ่ายใน</span>
+                <span id="countdown-text">กรุณานำกระบอกผสมมาวางใต้หัวจ่าย — เตรียมจ่ายปุ๋ยในอีก</span>
                 <strong id="countdown-num" class="tabular-num">10</strong>
                 <span>วินาที</span>
               </div>
@@ -613,13 +619,10 @@
           </div>
         </div>
 
-        <!-- Separate Standalone Summary Box ("สรุป") with SVGs & Horizontal Sub-items -->
+        <!-- Separate Standalone Summary Box ("สรุป") with SVGs & Vertical Sub-items -->
         <div id="final-summary-card" class="final-summary-card hidden">
           <div class="summary-card-head">
             <h3 class="summary-main-title">สรุป</h3>
-            <button id="btn-restart-workflow" type="button" class="btn btn-secondary btn-sm">
-              เริ่มแปลงใหม่
-            </button>
           </div>
 
           <div class="summary-rows-list">
@@ -630,10 +633,10 @@
               </div>
               <div class="sum-section-content">
                 <span class="sum-section-title">แปลงและขนาดพื้นที่</span>
-                <div class="sum-h-items">
-                  <div class="sum-h-item"><span>ชื่อแปลง</span><strong id="sum-plot-name">—</strong></div>
-                  <div class="sum-h-item"><span>พื้นที่</span><strong id="sum-area-m2" class="tabular-num">— ตร.ม.</strong></div>
-                  <div class="sum-h-item"><span>มาตราไทย</span><strong id="sum-area-thai" class="tabular-num">—</strong></div>
+                <div class="sum-v-items">
+                  <div class="sum-v-item"><span>ชื่อแปลง</span><strong id="sum-plot-name">—</strong></div>
+                  <div class="sum-v-item"><span>พื้นที่</span><strong id="sum-area-m2" class="tabular-num">— ตร.ม.</strong></div>
+                  <div class="sum-v-item"><span>มาตราไทย</span><strong id="sum-area-thai" class="tabular-num">—</strong></div>
                 </div>
               </div>
             </div>
@@ -645,11 +648,11 @@
               </div>
               <div class="sum-section-content">
                 <span class="sum-section-title">ข้อมูลพืชและดิน</span>
-                <div class="sum-h-items">
-                  <div class="sum-h-item"><span>ชนิดพืช</span><strong id="sum-crop-name">—</strong></div>
-                  <div class="sum-h-item"><span>สายพันธุ์</span><strong id="sum-crop-variety">—</strong></div>
-                  <div class="sum-h-item"><span>ระยะเติบโต</span><strong id="sum-crop-stage">—</strong></div>
-                  <div class="sum-h-item"><span>เนื้อดิน</span><strong id="sum-soil-type">—</strong></div>
+                <div class="sum-v-items">
+                  <div class="sum-v-item"><span>ชนิดพืช</span><strong id="sum-crop-name">—</strong></div>
+                  <div class="sum-v-item"><span>สายพันธุ์</span><strong id="sum-crop-variety">—</strong></div>
+                  <div class="sum-v-item"><span>ระยะเติบโต</span><strong id="sum-crop-stage">—</strong></div>
+                  <div class="sum-v-item"><span>เนื้อดิน</span><strong id="sum-soil-type">—</strong></div>
                 </div>
               </div>
             </div>
@@ -661,12 +664,12 @@
               </div>
               <div class="sum-section-content">
                 <span class="sum-section-title">ความเขียวและผลตรวจดินเฉลี่ย</span>
-                <div class="sum-h-items">
-                  <div class="sum-h-item"><span>ความเขียว (ExG)</span><strong id="sum-exg" class="tabular-num">— %</strong></div>
-                  <div class="sum-h-item"><span>N (mg/kg)</span><strong id="sum-soil-n" class="tabular-num">—</strong></div>
-                  <div class="sum-h-item"><span>P (mg/kg)</span><strong id="sum-soil-p" class="tabular-num">—</strong></div>
-                  <div class="sum-h-item"><span>K (mg/kg)</span><strong id="sum-soil-k" class="tabular-num">—</strong></div>
-                  <div class="sum-h-item"><span>pH</span><strong id="sum-soil-ph" class="tabular-num">—</strong></div>
+                <div class="sum-v-items">
+                  <div class="sum-v-item"><span>ความเขียว (ExG)</span><strong id="sum-exg" class="tabular-num">— %</strong></div>
+                  <div class="sum-v-item"><span>N (mg/kg)</span><strong id="sum-soil-n" class="tabular-num">—</strong></div>
+                  <div class="sum-v-item"><span>P (mg/kg)</span><strong id="sum-soil-p" class="tabular-num">—</strong></div>
+                  <div class="sum-v-item"><span>K (mg/kg)</span><strong id="sum-soil-k" class="tabular-num">—</strong></div>
+                  <div class="sum-v-item"><span>pH</span><strong id="sum-soil-ph" class="tabular-num">—</strong></div>
                 </div>
               </div>
             </div>
@@ -678,17 +681,24 @@
               </div>
               <div class="sum-section-content">
                 <span class="sum-section-title">สูตรผสม 1,000 ml และการพ่น</span>
-                <div class="sum-h-items">
-                  <div class="sum-h-item"><span>ขาดรวม</span><strong id="sum-deficit-tot" class="tabular-num">— g</strong></div>
-                  <div class="sum-h-item"><span>ปุ๋ย N</span><strong id="sum-vol-n" class="tabular-num">— ml</strong></div>
-                  <div class="sum-h-item"><span>ปุ๋ย P</span><strong id="sum-vol-p" class="tabular-num">— ml</strong></div>
-                  <div class="sum-h-item"><span>ปุ๋ย K</span><strong id="sum-vol-k" class="tabular-num">— ml</strong></div>
-                  <div class="sum-h-item"><span>น้ำเปล่า</span><strong id="sum-vol-w" class="tabular-num">— ml</strong></div>
-                  <div class="sum-h-item"><span>บรรจุพ่นโดรน</span><strong>8–10 ml (ครบแปลง)</strong></div>
+                <div class="sum-v-items">
+                  <div class="sum-v-item"><span>ขาดรวม</span><strong id="sum-deficit-tot" class="tabular-num">— g</strong></div>
+                  <div class="sum-v-item"><span>ปุ๋ย N</span><strong id="sum-vol-n" class="tabular-num">— ml</strong></div>
+                  <div class="sum-v-item"><span>ปุ๋ย P</span><strong id="sum-vol-p" class="tabular-num">— ml</strong></div>
+                  <div class="sum-v-item"><span>ปุ๋ย K</span><strong id="sum-vol-k" class="tabular-num">— ml</strong></div>
+                  <div class="sum-v-item"><span>น้ำเปล่า</span><strong id="sum-vol-w" class="tabular-num">— ml</strong></div>
+                  <div class="sum-v-item"><span>บรรจุพ่นโดรน</span><strong>8–10 ml (ครบแปลง)</strong></div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- Centered Restart Action Outside Every Info Box -->
+        <div id="final-restart-wrap" class="final-restart-wrap hidden">
+          <button id="btn-restart-workflow" type="button" class="btn btn-primary btn-lg">
+            เริ่มแปลงใหม่
+          </button>
         </div>
       </section>
 

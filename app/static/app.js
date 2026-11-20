@@ -84,15 +84,64 @@ function currentState() {
   return appState.byMode[appState.activeMode];
 }
 
+let _speechResolve = null;
+
+function stopSpeech() {
+  if (_speechResolve) {
+    const fn = _speechResolve;
+    _speechResolve = null;
+    fn();
+  }
+  if ("speechSynthesis" in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (_) {}
+  }
+}
+
 function speakThai(text) {
   if (!("speechSynthesis" in window) || !text) return;
   try {
-    window.speechSynthesis.cancel();
+    stopSpeech();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "th-TH";
     utter.rate = 1.02;
     window.speechSynthesis.speak(utter);
   } catch (_) {}
+}
+
+function speakThaiAndWait(text, maxWaitMs = 7000) {
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window) || !text) {
+      resolve();
+      return;
+    }
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (_speechResolve === finish) _speechResolve = null;
+      clearTimeout(timerId);
+      resolve();
+    };
+    const timerId = setTimeout(finish, maxWaitMs);
+    try {
+      stopSpeech();
+      _speechResolve = finish;
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "th-TH";
+      utter.rate = 0.98;
+      utter.onend = finish;
+      utter.onerror = finish;
+      window.speechSynthesis.speak(utter);
+    } catch (_) {
+      finish();
+    }
+  });
+}
+
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function apiRequest(url, options = {}) {
@@ -131,6 +180,10 @@ function goToStage(stageIndex) {
   s.stage = idx;
   if (idx > s.maxStage) s.maxStage = idx;
 
+  if (idx !== 1 && polygonDrawer && polygonDrawer._enabled) {
+    polygonDrawer.disable();
+  }
+
   document.querySelectorAll("[data-stage]").forEach((el) => {
     el.classList.toggle("hidden", Number(el.dataset.stage) !== idx);
   });
@@ -142,6 +195,8 @@ function goToStage(stageIndex) {
   });
 
   document.getElementById("stage-subtitle").textContent = STAGE_TITLES[idx] || "";
+  const backBtn = document.getElementById("btn-stage-back");
+  if (backBtn) backBtn.classList.toggle("hidden", idx === 0);
 
   if (idx === 1 && mapInstance) {
     setTimeout(() => mapInstance.invalidateSize(), 60);
@@ -201,7 +256,7 @@ function restoreModeUI() {
   // Survey restore
   document.getElementById("survey-launch-wrap").classList.toggle("hidden", s.survey.done);
   document.getElementById("survey-status-wrap").classList.add("hidden");
-  document.getElementById("survey-live-fallback").classList.add("hidden");
+  document.getElementById("survey-live-fallback-msg").classList.add("hidden");
   document.getElementById("survey-result-wrap").classList.toggle("hidden", !s.survey.done);
   if (s.survey.done) {
     document.getElementById("img-before-exg").src = s.survey.origUrl;
@@ -226,6 +281,7 @@ function restoreModeUI() {
   document.getElementById("final-cta-wrap").classList.toggle("hidden", finalDone);
   document.getElementById("final-complete-banner").classList.toggle("hidden", !finalDone);
   document.getElementById("final-summary-card").classList.toggle("hidden", !finalDone);
+  document.getElementById("final-restart-wrap").classList.toggle("hidden", !finalDone);
   if (finalDone) populateFinalSummary();
 
   goToStage(s.stage);
@@ -546,6 +602,115 @@ function initStage1Map() {
 
 /* ==================== STAGE 2: SEQUENTIAL CASCADING DROPDOWNS ==================== */
 
+const _customDropdownControllers = new Map();
+
+function closeAllCustomDropdowns(exceptWrapper = null) {
+  _customDropdownControllers.forEach(({ wrapper, trigger, menu }) => {
+    if (wrapper !== exceptWrapper) {
+      menu.classList.add("hidden");
+      trigger.setAttribute("aria-expanded", "false");
+    }
+  });
+}
+
+function syncCustomDropdown(selectEl) {
+  const ctrl = _customDropdownControllers.get(selectEl);
+  if (!ctrl) return;
+  const { trigger, labelSpan, menu } = ctrl;
+
+  const selectedOpt = selectEl.options[selectEl.selectedIndex];
+  const hasValue = Boolean(selectEl.value);
+  labelSpan.textContent = selectedOpt ? selectedOpt.textContent : "เลือก...";
+  trigger.classList.toggle("is-placeholder", !hasValue);
+  trigger.classList.toggle("is-valid", hasValue);
+
+  menu.innerHTML = "";
+  Array.from(selectEl.options).forEach((opt) => {
+    if (opt.disabled && !opt.value) return;
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "custom-select-option";
+    item.setAttribute("role", "option");
+    const isSel = opt.value === selectEl.value;
+    item.setAttribute("aria-selected", String(isSel));
+    if (isSel) item.classList.add("is-selected");
+    item.textContent = opt.textContent;
+    item.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectEl.value = opt.value;
+      closeAllCustomDropdowns();
+      syncCustomDropdown(selectEl);
+      selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      trigger.focus();
+    });
+    menu.appendChild(item);
+  });
+}
+
+function syncAllStage2Dropdowns() {
+  _customDropdownControllers.forEach((_, sel) => syncCustomDropdown(sel));
+}
+
+function initCustomDropdowns() {
+  const ids = ["select-crop-name", "select-variety", "select-growth-stage", "select-soil-type"];
+  ids.forEach((id) => {
+    const selectEl = document.getElementById(id);
+    if (!selectEl || _customDropdownControllers.has(selectEl)) return;
+
+    selectEl.classList.add("visually-hidden");
+    selectEl.tabIndex = -1;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "custom-select";
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "custom-select-trigger is-placeholder";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "custom-select-text";
+    trigger.appendChild(labelSpan);
+
+    trigger.insertAdjacentHTML(
+      "beforeend",
+      '<svg class="custom-select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>'
+    );
+
+    const menu = document.createElement("div");
+    menu.className = "custom-select-menu hidden";
+    menu.setAttribute("role", "listbox");
+
+    trigger.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const willOpen = menu.classList.contains("hidden");
+      closeAllCustomDropdowns(wrapper);
+      menu.classList.toggle("hidden", !willOpen);
+      trigger.setAttribute("aria-expanded", String(willOpen));
+    });
+
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(menu);
+    selectEl.parentNode.insertBefore(wrapper, selectEl.nextSibling);
+
+    _customDropdownControllers.set(selectEl, { wrapper, trigger, labelSpan, menu });
+    syncCustomDropdown(selectEl);
+  });
+
+  document.addEventListener("click", (e) => {
+    const inside = Array.from(_customDropdownControllers.values()).some(({ wrapper }) =>
+      wrapper.contains(e.target)
+    );
+    if (!inside) closeAllCustomDropdowns();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAllCustomDropdowns();
+  });
+}
+
 function restoreCascadingCropUI() {
   const s = currentState();
   const selCrop = document.getElementById("select-crop-name");
@@ -592,6 +757,7 @@ function restoreCascadingCropUI() {
     selSoil.value = "";
     document.getElementById("wrap-stage2-submit").classList.add("hidden");
   }
+  syncAllStage2Dropdowns();
 }
 
 function populateVarieties(cropName) {
@@ -604,6 +770,7 @@ function populateVarieties(cropName) {
     opt.textContent = v;
     selVar.appendChild(opt);
   });
+  syncCustomDropdown(selVar);
 }
 
 function populateStages(cropName, variety) {
@@ -616,9 +783,11 @@ function populateStages(cropName, variety) {
     opt.textContent = p.growth_stage;
     selStage.appendChild(opt);
   });
+  syncCustomDropdown(selStage);
 }
 
 function bindStage2() {
+  initCustomDropdowns();
   const selCrop = document.getElementById("select-crop-name");
   const selVar = document.getElementById("select-variety");
   const selStage = document.getElementById("select-growth-stage");
@@ -635,6 +804,7 @@ function bindStage2() {
     document.getElementById("wrap-stage").classList.add("hidden");
     document.getElementById("wrap-soil-type").classList.add("hidden");
     document.getElementById("wrap-stage2-submit").classList.add("hidden");
+    syncAllStage2Dropdowns();
   });
 
   selVar.addEventListener("change", (e) => {
@@ -646,6 +816,7 @@ function bindStage2() {
     document.getElementById("wrap-stage").classList.remove("hidden");
     document.getElementById("wrap-soil-type").classList.add("hidden");
     document.getElementById("wrap-stage2-submit").classList.add("hidden");
+    syncAllStage2Dropdowns();
   });
 
   selStage.addEventListener("change", (e) => {
@@ -656,11 +827,13 @@ function bindStage2() {
     );
     s.crop.profileId = match ? match.id : null;
     document.getElementById("wrap-soil-type").classList.remove("hidden");
+    syncAllStage2Dropdowns();
   });
 
   selSoil.addEventListener("change", (e) => {
     currentState().crop.soilType = e.target.value;
     document.getElementById("wrap-stage2-submit").classList.remove("hidden");
+    syncCustomDropdown(selSoil);
   });
 
   document.getElementById("form-crop-cascade").addEventListener("submit", (e) => {
@@ -677,7 +850,7 @@ function showSurveyImages(origUrl, maskUrl, greenPct) {
   const s = currentState();
   s.survey = { origUrl, maskUrl, greenPct, done: true };
   document.getElementById("survey-status-wrap").classList.add("hidden");
-  document.getElementById("survey-live-fallback").classList.add("hidden");
+  document.getElementById("survey-live-fallback-msg").classList.add("hidden");
   document.getElementById("img-before-exg").src = origUrl;
   document.getElementById("img-after-exg").src = maskUrl;
   document.getElementById("exg-pct-badge").textContent = `${formatNum(greenPct, 1)} %`;
@@ -688,7 +861,7 @@ async function handleSurveyImageUpload(file) {
   if (!file) return;
   const s = currentState();
   document.getElementById("survey-launch-wrap").classList.add("hidden");
-  document.getElementById("survey-live-fallback").classList.add("hidden");
+  document.getElementById("survey-live-fallback-msg").classList.add("hidden");
   document.getElementById("survey-status-wrap").classList.remove("hidden");
   document.getElementById("survey-status-text").textContent = "กำลังวิเคราะห์พื้นที่สีเขียว (ExG) จากภาพถ่าย...";
 
@@ -714,6 +887,7 @@ function bindStage3() {
     const s = currentState();
     const mode = appState.activeMode;
     document.getElementById("survey-launch-wrap").classList.add("hidden");
+    document.getElementById("survey-live-fallback-msg").classList.add("hidden");
     const statusWrap = document.getElementById("survey-status-wrap");
     const statusText = document.getElementById("survey-status-text");
     statusWrap.classList.remove("hidden");
@@ -732,7 +906,8 @@ function bindStage3() {
 
     if (mode === "live" && mission.__status === 501) {
       statusWrap.classList.add("hidden");
-      document.getElementById("survey-live-fallback").classList.remove("hidden");
+      document.getElementById("survey-live-fallback-msg").classList.remove("hidden");
+      document.getElementById("survey-launch-wrap").classList.remove("hidden");
       return;
     }
 
@@ -748,11 +923,10 @@ function bindStage3() {
     }
   });
 
-  document.getElementById("input-survey-image-fallback").addEventListener("change", (e) => {
-    handleSurveyImageUpload(e.target.files?.[0]);
-  });
-  document.getElementById("input-survey-image-both").addEventListener("change", (e) => {
-    handleSurveyImageUpload(e.target.files?.[0]);
+  document.getElementById("input-survey-image").addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleSurveyImageUpload(file);
+    e.target.value = "";
   });
 
   document.getElementById("btn-survey-accept").addEventListener("click", () => goToStage(4));
@@ -872,10 +1046,11 @@ async function startAutoSoilProbing() {
         });
       }
     } else {
-      bodyPayload.n = Math.round(14 + Math.random() * 12);
-      bodyPayload.p = Math.round(7 + Math.random() * 7);
-      bodyPayload.k = Math.round(30 + Math.random() * 18);
-      bodyPayload.ph = Number((5.8 + Math.random() * 0.8).toFixed(1));
+      // Simulate realistic LDD low/deficient soil readings so every fertilizing stage shows positive N, P, K needs
+      bodyPayload.n = Math.round(3 + Math.random() * 3);
+      bodyPayload.p = Math.round(2 + Math.random() * 2);
+      bodyPayload.k = Math.round(4 + Math.random() * 5);
+      bodyPayload.ph = Number((5.4 + Math.random() * 0.8).toFixed(1));
     }
 
     const res = await apiRequest("/api/soil/points", {
@@ -922,8 +1097,11 @@ function bindStage4() {
 let _countdownTimer = null;
 let _dispensePollTimer = null;
 let _stopArmResetTimer = null;
+let _dispenseFlowToken = 0;
 
 function stopDispenseTimers() {
+  _dispenseFlowToken += 1;
+  stopSpeech();
   if (_countdownTimer) {
     clearInterval(_countdownTimer);
     _countdownTimer = null;
@@ -990,6 +1168,11 @@ function renderMixerComparison() {
   document.getElementById("conv-r2").textContent = `${(Number(s.mixer.r2 || 0) * 100).toFixed(1)} %`;
   document.getElementById("conv-mae").textContent = `${formatNum(s.mixer.mae, 2)} g/m²`;
 
+  const sufNote = document.getElementById("calc-sufficient-note");
+  if (sufNote) {
+    sufNote.classList.toggle("hidden", totalDeficit > 0);
+  }
+
   const vols = s.mixer.volumes || {};
   document.getElementById("ch-n-ml").textContent = `${formatNum(vols.n, 1)} ml`;
   document.getElementById("ch-p-ml").textContent = `${formatNum(vols.p, 1)} ml`;
@@ -1039,13 +1222,15 @@ function bindStage5() {
     document.getElementById("calc-comparison-wrap").classList.remove("hidden");
   });
 
-  document.getElementById("btn-start-dispense").addEventListener("click", () => {
+  document.getElementById("btn-start-dispense").addEventListener("click", async () => {
     stopDispenseTimers();
     resetEmergencyStopButton();
+    const myToken = ++_dispenseFlowToken;
     const s = currentState();
     const mode = appState.activeMode;
     const liveSection = document.getElementById("dispense-live-section");
     const countdownBox = document.getElementById("countdown-banner");
+    const countdownText = document.getElementById("countdown-text");
     const countdownNum = document.getElementById("countdown-num");
     const statusText = document.getElementById("dispense-status-text");
     const stopBtn = document.getElementById("btn-stop-dispense");
@@ -1058,82 +1243,102 @@ function bindStage5() {
     updateBottleVisual(0, 1000);
     liveSection.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    let secLeft = 10;
-    countdownNum.textContent = String(secLeft);
-    statusText.textContent = "รอผู้ใช้เตรียมกระบอกผสมใต้หัวจ่าย...";
-    speakThai("ให้นำกระบอกมาใส่ใต้หัวจ่าย เริ่มใน 10 วินาที");
+    // Step 1: Speak setup instruction completely without interruption
+    countdownNum.textContent = "10";
+    countdownText.textContent = "กรุณานำกระบอกผสมมาวางใต้หัวจ่าย...";
+    statusText.textContent = "กำลังแจ้งเตือนเตรียมวางกระบอกผสม...";
+    await speakThaiAndWait("กรุณานำกระบอกผสมมาวางใต้หัวจ่าย", 7500);
+    if (myToken !== _dispenseFlowToken) return;
 
-    _countdownTimer = setInterval(async () => {
-      secLeft -= 1;
-      if (secLeft > 0) {
-        countdownNum.textContent = String(secLeft);
-        speakThai(String(secLeft));
+    // Step 2: Pause 2 seconds after instruction finishes
+    statusText.textContent = "รอผู้ใช้เตรียมกระบอกผสม (2 วินาที)...";
+    await waitMs(2000);
+    if (myToken !== _dispenseFlowToken) return;
+
+    // Step 3: Announce upcoming release, then count down 10..1 sequentially
+    countdownText.textContent = "ระบบกำลังจะปล่อยน้ำปุ๋ยผสมลงกระบอกในอีก";
+    statusText.textContent = "กำลังนับถอยหลัง 10 วินาที ก่อนเริ่มจ่ายปุ๋ย...";
+    await speakThaiAndWait("ระบบกำลังจะปล่อยน้ำปุ๋ยผสมลงกระบอกในอีก", 6500);
+    if (myToken !== _dispenseFlowToken) return;
+
+    for (let secLeft = 10; secLeft >= 1; secLeft -= 1) {
+      if (myToken !== _dispenseFlowToken) return;
+      countdownNum.textContent = String(secLeft);
+      await Promise.all([
+        waitMs(1050),
+        speakThaiAndWait(String(secLeft), 1600),
+      ]);
+    }
+    if (myToken !== _dispenseFlowToken) return;
+
+    // Step 4: Hide countdown banner and begin dispensing
+    countdownBox.classList.add("hidden");
+    speakThai("เริ่มจ่ายน้ำปุ๋ยครับ");
+
+    const totalBatch =
+      Number(s.mixer.volumes?.n || 0) +
+      Number(s.mixer.volumes?.p || 0) +
+      Number(s.mixer.volumes?.k || 0) +
+      Number(s.mixer.volumes?.water || 0) || 1000;
+
+    if (mode === "live") {
+      statusText.textContent = "กำลังสั่งเปิดปั๊มจ่ายปุ๋ยจริงทีละช่อง...";
+      const dispRes = await apiRequest("/api/mixer/dispense-live", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (myToken !== _dispenseFlowToken) return;
+      if (dispRes && dispRes.__error) {
+        statusText.textContent = dispRes.__error;
         return;
       }
-      clearInterval(_countdownTimer);
-      _countdownTimer = null;
-      countdownBox.classList.add("hidden");
-      speakThai("เริ่มจ่ายปุ๋ย");
+      _dispensePollTimer = setInterval(async () => {
+        const hw = await apiRequest("/api/mixer/hw-status");
+        if (!hw || hw.__error || myToken !== _dispenseFlowToken) return;
+        statusText.textContent = hw.current_step || "กำลังจ่ายน้ำ...";
+        updateBottleVisual(hw.dispensed_ml, hw.target_total_ml || totalBatch);
+        if (!hw.is_running) {
+          clearInterval(_dispensePollTimer);
+          _dispensePollTimer = null;
+          updateBottleVisual(hw.target_total_ml || totalBatch, hw.target_total_ml || totalBatch);
+          s.mixer.dispensedDone = true;
+          statusText.textContent = "จ่ายน้ำปุ๋ยครบ 1,000 ml เรียบร้อยแล้ว";
+          stopBtn.classList.add("hidden");
+          nextWrap.classList.remove("hidden");
+        }
+      }, 250);
+    } else {
+      const vN = Number(s.mixer.volumes?.n || 0);
+      const vP = Number(s.mixer.volumes?.p || 0);
+      const vK = Number(s.mixer.volumes?.k || 0);
+      let simMl = 0;
+      const stepMl = totalBatch / 36;
 
-      const totalBatch =
-        Number(s.mixer.volumes?.n || 0) +
-        Number(s.mixer.volumes?.p || 0) +
-        Number(s.mixer.volumes?.k || 0) +
-        Number(s.mixer.volumes?.water || 0) || 1000;
-
-      if (mode === "live") {
-        statusText.textContent = "กำลังสั่งเปิดปั๊มจ่ายปุ๋ยจริงทีละช่อง...";
-        const dispRes = await apiRequest("/api/mixer/dispense-live", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (dispRes && dispRes.__error) {
-          statusText.textContent = dispRes.__error;
+      _dispensePollTimer = setInterval(() => {
+        if (myToken !== _dispenseFlowToken) {
+          clearInterval(_dispensePollTimer);
+          _dispensePollTimer = null;
           return;
         }
-        _dispensePollTimer = setInterval(async () => {
-          const hw = await apiRequest("/api/mixer/hw-status");
-          if (!hw || hw.__error) return;
-          statusText.textContent = hw.current_step || "กำลังจ่ายน้ำ...";
-          updateBottleVisual(hw.dispensed_ml, hw.target_total_ml || totalBatch);
-          if (!hw.is_running) {
-            clearInterval(_dispensePollTimer);
-            _dispensePollTimer = null;
-            updateBottleVisual(hw.target_total_ml || totalBatch, hw.target_total_ml || totalBatch);
-            s.mixer.dispensedDone = true;
-            statusText.textContent = "จ่ายน้ำปุ๋ยครบ 1,000 ml เรียบร้อยแล้ว";
-            stopBtn.classList.add("hidden");
-            nextWrap.classList.remove("hidden");
-          }
-        }, 250);
-      } else {
-        const vN = Number(s.mixer.volumes?.n || 0);
-        const vP = Number(s.mixer.volumes?.p || 0);
-        const vK = Number(s.mixer.volumes?.k || 0);
-        let simMl = 0;
-        const stepMl = totalBatch / 36;
+        simMl = Math.min(totalBatch, simMl + stepMl);
+        if (simMl <= vN) statusText.textContent = "กำลังดูดจ่ายปุ๋ย N (ไนโตรเจน)...";
+        else if (simMl <= vN + vP) statusText.textContent = "กำลังดูดจ่ายปุ๋ย P (ฟอสฟอรัส)...";
+        else if (simMl <= vN + vP + vK) statusText.textContent = "กำลังดูดจ่ายปุ๋ย K (โพแทสเซียม)...";
+        else statusText.textContent = "กำลังเติมน้ำเปล่าเจือจาง...";
 
-        _dispensePollTimer = setInterval(() => {
-          simMl = Math.min(totalBatch, simMl + stepMl);
-          if (simMl <= vN) statusText.textContent = "กำลังดูดจ่ายปุ๋ย N (ไนโตรเจน)...";
-          else if (simMl <= vN + vP) statusText.textContent = "กำลังดูดจ่ายปุ๋ย P (ฟอสฟอรัส)...";
-          else if (simMl <= vN + vP + vK) statusText.textContent = "กำลังดูดจ่ายปุ๋ย K (โพแทสเซียม)...";
-          else statusText.textContent = "กำลังเติมน้ำเปล่าเจือจาง...";
-
-          updateBottleVisual(simMl, totalBatch);
-          if (simMl >= totalBatch) {
-            clearInterval(_dispensePollTimer);
-            _dispensePollTimer = null;
-            s.mixer.dispensedDone = true;
-            statusText.textContent = "ผสมปุ๋ยน้ำชีวภาพครบ 1,000 ml เสร็จสิ้นแล้ว";
-            speakThai("จ่ายน้ำปุ๋ยครบ 1,000 มิลลิลิตรแล้วครับ");
-            stopBtn.classList.add("hidden");
-            nextWrap.classList.remove("hidden");
-          }
-        }, 250);
-      }
-    }, 1000);
+        updateBottleVisual(simMl, totalBatch);
+        if (simMl >= totalBatch) {
+          clearInterval(_dispensePollTimer);
+          _dispensePollTimer = null;
+          s.mixer.dispensedDone = true;
+          statusText.textContent = "ผสมปุ๋ยน้ำชีวภาพครบ 1,000 ml เสร็จสิ้นแล้ว";
+          speakThai("จ่ายน้ำปุ๋ยครบ 1,000 มิลลิลิตรแล้วครับ");
+          stopBtn.classList.add("hidden");
+          nextWrap.classList.remove("hidden");
+        }
+      }, 250);
+    }
   });
 
   // 2-Step Confirmation Red Emergency Stop
@@ -1253,6 +1458,7 @@ function bindStage6() {
     populateFinalSummary();
     document.getElementById("final-complete-banner").classList.remove("hidden");
     document.getElementById("final-summary-card").classList.remove("hidden");
+    document.getElementById("final-restart-wrap").classList.remove("hidden");
     speakThai("เสร็จสิ้นระบบทั้งหมดเรียบร้อยแล้วครับ");
     btn.disabled = false;
   });
@@ -1343,6 +1549,13 @@ async function initApp() {
         goToStage(target);
       }
     });
+  });
+
+  document.getElementById("btn-stage-back").addEventListener("click", () => {
+    stopAutoSoilProbing(false);
+    stopDispenseTimers();
+    const cur = currentState().stage;
+    if (cur > 0) goToStage(cur - 1);
   });
 
   initStage1Map();
