@@ -31,6 +31,7 @@ from config import (  # noqa: E402
 )
 from database import get_connection, init_db  # noqa: E402
 from hardware_bridge import (  # noqa: E402
+    fetch_remote_pi5_soil,
     force_stop_all_pumps,
     get_pump_hardware_status,
     get_soil_receiver_status,
@@ -265,6 +266,69 @@ def create_app(
     def get_soil_hw_status() -> Any:
         """Return live LoRa RA-02 and USB Serial soil receiver diagnostics."""
         return jsonify(get_soil_receiver_status())
+
+    @flask_app.post("/api/soil/sync-pi5")
+    def sync_soil_from_pi5() -> Any:
+        """Pull live LoRa soil & 15-point data from an untouched Pi 5 (:10000)."""
+        data = request.get_json(silent=True) or {}
+        plot_id = int(data.get("plot_id") or 1)
+        cfg = get_config(override_path)
+        pi5_url = str(data.get("pi5_base_url") or cfg.pi5_base_url or "").strip()
+        if not pi5_url:
+            return jsonify({"ok": False, "error": "กรุณาตั้งค่า IP ของ Raspberry Pi 5 ในหน้าตั้งค่าก่อน"}), 400
+
+        try:
+            remote = fetch_remote_pi5_soil(pi5_url)
+        except Exception as exc:
+            return jsonify({"ok": False, "error": f"เชื่อมต่อ Pi 5 ไม่สำเร็จ: {exc}"}), 502
+
+        soil_vals = remote["soil"]
+        saved_soil = _persist_soil_reading(
+            db_path=db_path,
+            plot_id=plot_id,
+            mode="live",
+            source=f"pi5_{remote['source']}",
+            values=soil_vals,
+        )
+
+        synced_points = 0
+        with get_connection(db_path) as conn:
+            for pt in remote.get("recorded_points") or []:
+                try:
+                    idx = int(pt.get("id") or 0)
+                    n_v, p_v, k_v = pt.get("N"), pt.get("P"), pt.get("K")
+                    if not (1 <= idx <= 15) or n_v in (None, "-") or p_v in (None, "-") or k_v in (None, "-"):
+                        continue
+                    ph_v = float(pt["pH"]) if pt.get("pH") not in (None, "-") else None
+                    conn.execute(
+                        "DELETE FROM soil_readings WHERE plot_id = ? AND mode = 'live' AND point_index = ?",
+                        (plot_id, idx),
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO soil_readings (
+                            plot_id, nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg,
+                            ph_value, source, mode, point_index
+                        ) VALUES (?, ?, ?, ?, ?, 'pi5_point_15', 'live', ?)
+                        """,
+                        (plot_id, float(n_v), float(p_v), float(k_v), ph_v, idx),
+                    )
+                    synced_points += 1
+                except (TypeError, ValueError):
+                    continue
+            conn.commit()
+
+        return jsonify(
+            {
+                "ok": True,
+                "pi5_base_url": pi5_url,
+                "soil": saved_soil,
+                "synced_points": synced_points,
+                "lora_connected": remote["lora_connected"],
+                "lora_rssi": remote["lora_rssi"],
+                "packet_count": remote["packet_count"],
+            }
+        )
 
     @flask_app.post("/api/soil/manual")
     def save_soil_manual() -> Any:
@@ -731,7 +795,13 @@ def create_app(
             conn.execute("UPDATE mixing_jobs SET status = 'mixing' WHERE id = ?", (job_id,))
             conn.commit()
 
-        started = start_sequential_dispense(job_id, durations, sync_for_test=sync_for_test)
+        cfg = get_config(override_path)
+        started = start_sequential_dispense(
+            job_id,
+            durations,
+            sync_for_test=sync_for_test,
+            pi5_base_url=cfg.pi5_base_url,
+        )
         if not started:
             return jsonify({"ok": False, "error": "ปั๊มกำลังทำงานอยู่ กรุณารอสักครู่หรือกดหยุดฉุกเฉิน"}), 409
 

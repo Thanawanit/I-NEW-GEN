@@ -888,7 +888,18 @@ function bindWorkspace3() {
     }
   });
 
-  document.getElementById("btn-refresh-soil").addEventListener("click", refreshBackendForActiveMode);
+  document.getElementById("btn-refresh-soil").addEventListener("click", async () => {
+    const cfg = await apiRequest("/api/config");
+    if (cfg && cfg.pi5_base_url) {
+      const s = currentModeState();
+      await apiRequest("/api/soil/sync-pi5", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plot_id: s.plot.id || 1 }),
+      });
+    }
+    await refreshBackendForActiveMode();
+  });
 
   document.getElementById("btn-record-next-point").addEventListener("click", async () => {
     const s = currentModeState();
@@ -1184,6 +1195,7 @@ function bindSettingsModal() {
     document.getElementById("cfg-q-w").value = cfg.q_pump_water ?? "";
     document.getElementById("cfg-table-w").value = cfg.table_width_cm ?? "";
     document.getElementById("cfg-table-h").value = cfg.table_height_cm ?? "";
+    document.getElementById("cfg-pi5-url").value = cfg.pi5_base_url ?? "";
   });
 
   closeBtns.forEach((b) => b.addEventListener("click", () => modal.classList.add("hidden")));
@@ -1200,6 +1212,7 @@ function bindSettingsModal() {
         q_pump_water: Number(document.getElementById("cfg-q-w").value),
         table_width_cm: Number(document.getElementById("cfg-table-w").value),
         table_height_cm: Number(document.getElementById("cfg-table-h").value),
+        pi5_base_url: document.getElementById("cfg-pi5-url").value.trim(),
       }),
     });
     modal.classList.add("hidden");

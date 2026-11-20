@@ -9,6 +9,8 @@ import os
 import re
 import threading
 import time
+import urllib.error
+import urllib.request
 from typing import Any, Callable
 
 try:
@@ -184,18 +186,64 @@ def _run_single_pump(dev: OutputDevice, label: str, duration_s: float) -> float:
     return time.perf_counter() - start_ts
 
 
+def _http_json(
+    url: str,
+    method: str = "GET",
+    payload: dict[str, Any] | None = None,
+    timeout_s: float = 5.0,
+) -> dict[str, Any]:
+    """Perform a minimal JSON HTTP call against an untouched Pi 5 server."""
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    headers = {"Content-Type": "application/json"} if body is not None else {}
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        return dict(json.loads(resp.read().decode("utf-8")))
+
+
+def fetch_remote_pi5_soil(pi5_base_url: str) -> dict[str, Any]:
+    """Fetch live LoRa/USB soil reading and 15-point table from an untouched Pi 5 (:10000)."""
+    base = str(pi5_base_url or "").strip().rstrip("/")
+    if not base:
+        raise ValueError("ยังไม่ได้ตั้งค่า URL ของ Raspberry Pi 5")
+
+    soil_data = _http_json(f"{base}/api/soil", method="GET", timeout_s=3.5)
+    points_data: dict[str, Any] = {}
+    try:
+        points_data = _http_json(f"{base}/api/points", method="GET", timeout_s=3.5)
+    except Exception:
+        points_data = {}
+
+    return {
+        "soil": {
+            "ph": float(soil_data["pH"]) if soil_data.get("pH") is not None else None,
+            "n": float(soil_data["N"]) if soil_data.get("N") is not None else None,
+            "p": float(soil_data["P"]) if soil_data.get("P") is not None else None,
+            "k": float(soil_data["K"]) if soil_data.get("K") is not None else None,
+        },
+        "source": str(soil_data.get("source") or "pi5_remote"),
+        "lora_connected": bool(soil_data.get("lora_connected")),
+        "lora_rssi": soil_data.get("lora_rssi"),
+        "packet_count": int(soil_data.get("packet_count") or 0),
+        "recorded_points": points_data.get("recorded_points") or [],
+    }
+
+
 def start_sequential_dispense(
     job_id: int,
     durations_s: dict[str, float],
     on_complete: Callable[[int, str], None] | None = None,
     sync_for_test: bool = False,
+    pi5_base_url: str = "",
 ) -> bool:
-    """Run N -> P -> K -> Water sequentially on Raspberry Pi GPIO 17, 27, 22, 23."""
+    """Run N -> P -> K -> Water sequentially on local Pi GPIO or remote untouched Pi 5 (:10000)."""
     global _stop_requested
     if _dispense_state["is_running"]:
         return False
 
-    init_pumps()
+    remote_base = str(pi5_base_url or "").strip().rstrip("/")
+    if not remote_base:
+        init_pumps()
+
     _stop_requested = False
     _dispense_state["is_running"] = True
     _dispense_state["active_job_id"] = job_id
@@ -205,28 +253,40 @@ def start_sequential_dispense(
         final_status = "mixing"
         try:
             sequence = [
-                ("n", "Nitrogen (N) [GPIO 17]"),
-                ("p", "Phosphorus (P) [GPIO 27]"),
-                ("k", "Potassium (K) [GPIO 22]"),
-                ("water", "Water [GPIO 23]"),
+                ("n", "N", "Nitrogen (N) [GPIO 17]"),
+                ("p", "P", "Phosphorus (P) [GPIO 27]"),
+                ("k", "K", "Potassium (K) [GPIO 22]"),
+                ("water", "W", "Water [GPIO 23]"),
             ]
-            for key, label in sequence:
+            for key, remote_key, label in sequence:
                 dur = float(durations_s.get(key, 0.0) or 0.0)
-                if dur > 0 and not _stop_requested:
+                if dur <= 0 or _stop_requested:
+                    continue
+                if remote_base:
+                    _dispense_state["current_step"] = f"Remote Pi5 -> {label}"
+                    safe_dur = round(min(dur, 120.0), 3)
+                    _http_json(
+                        f"{remote_base}/api/pump_test",
+                        method="POST",
+                        payload={"pump": remote_key, "duration_s": safe_dur},
+                        timeout_s=safe_dur + 10.0,
+                    )
+                else:
                     _run_single_pump(_pumps[key], label, dur)
-                    if not _stop_requested:
-                        time.sleep(0.2)
+                if not _stop_requested:
+                    time.sleep(0.2)
             if _stop_requested:
                 final_status = "stopped"
         except Exception as exc:
             _dispense_state["last_error"] = str(exc)
             final_status = "stopped"
         finally:
-            for dev in _pumps.values():
-                try:
-                    dev.off()
-                except Exception:
-                    pass
+            if not remote_base:
+                for dev in _pumps.values():
+                    try:
+                        dev.off()
+                    except Exception:
+                        pass
             _dispense_state["is_running"] = False
             _dispense_state["current_step"] = "idle" if not _stop_requested else "stopped"
             if on_complete is not None:

@@ -490,6 +490,51 @@ class TestFlaskAPI(unittest.TestCase):
         self.assertEqual(cleared["recorded_count"], 0)
         self.assertIsNone(cleared["average"])
 
+        # 8. Remote untouched Pi 5 bridge (:10000) for soil sync and pump_test dispense
+        cfg_up = self.client.post("/api/config", json={"pi5_base_url": "192.168.1.50"}).get_json()
+        self.assertEqual(cfg_up["pi5_base_url"], "http://192.168.1.50:10000")
+
+        pump_calls: list[dict[str, object]] = []
+
+        def _fake_urlopen(req: object, timeout: float = 5.0) -> object:
+            url = getattr(req, "full_url", str(req))
+            if url.endswith("/api/soil"):
+                body = b'{"pH": 6.6, "N": 22, "P": 14, "K": 38, "source": "lora", "lora_connected": true, "lora_rssi": -61, "packet_count": 5}'
+            elif url.endswith("/api/points"):
+                body = b'{"recorded_points": [{"id": 1, "pH": 6.6, "N": 22, "P": 14, "K": 38}]}'
+            elif url.endswith("/api/pump_test"):
+                raw_data = getattr(req, "data", b"{}") or b"{}"
+                import json as _json
+                pump_calls.append(_json.loads(raw_data.decode("utf-8")))
+                body = b'{"ok": true}'
+            else:
+                raise AssertionError(f"Unexpected URL: {url}")
+
+            resp = mock.MagicMock()
+            resp.read.return_value = body
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = False
+            return resp
+
+        with mock.patch("hardware_bridge.urllib.request.urlopen", side_effect=_fake_urlopen):
+            sync_resp = self.client.post("/api/soil/sync-pi5", json={"plot_id": plot_id})
+            self.assertEqual(sync_resp.status_code, 200)
+            sync_json = sync_resp.get_json()
+            self.assertTrue(sync_json["ok"])
+            self.assertEqual(sync_json["synced_points"], 1)
+            self.assertAlmostEqual(sync_json["soil"]["n"], 22.0)
+
+            calc_remote = self.client.post(
+                "/api/mixer/calculate",
+                json={"plot_id": plot_id, "mode": "live", "crop_profile_id": crops[0]["id"], "confirmed_area_m2": 100.0, "soil_type": "loam"},
+            )
+            self.assertEqual(calc_remote.status_code, 200)
+
+            disp_remote = self.client.post("/api/mixer/dispense-live", json={"_sync_for_test": True})
+            self.assertEqual(disp_remote.status_code, 200)
+            self.assertTrue(len(pump_calls) >= 1)
+            self.assertTrue(all(call["pump"] in {"N", "P", "K", "W"} for call in pump_calls))
+
 
 if __name__ == "__main__":
     unittest.main()

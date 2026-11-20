@@ -48,6 +48,9 @@ class AppConfig:
     p_avail_factor: float = 0.20
     k_avail_factor: float = 0.15
 
+    # Untouched Pi 5 remote base URL (e.g. "http://192.168.1.50:10000"); empty = local GPIO mode
+    pi5_base_url: str = ""
+
     # Reference soil bulk densities (g/cm^3)
     bulk_density_map: dict[str, float] = field(
         default_factory=lambda: {
@@ -67,13 +70,30 @@ class AppConfig:
     )
 
 
+def normalize_pi5_base_url(raw: str) -> str:
+    """Normalize a Raspberry Pi 5 host/URL to 'http://<host>:<port>' (default port 10000)."""
+    text = str(raw or "").strip().rstrip("/")
+    if not text:
+        return ""
+    if not text.startswith(("http://", "https://")):
+        text = f"http://{text}"
+    scheme, rest = text.split("://", 1)
+    if ":" not in rest and "/" not in rest:
+        rest = f"{rest}:10000"
+    return f"{scheme}://{rest}"
+
+
 def get_config(override_path: Path = OVERRIDE_PATH) -> AppConfig:
     """Load default config merged with any persisted JSON overrides."""
     cfg = AppConfig()
     if override_path.exists():
         raw = json.loads(override_path.read_text(encoding="utf-8"))
         for key, value in raw.items():
-            if hasattr(cfg, key) and isinstance(value, (int, float)):
+            if not hasattr(cfg, key):
+                continue
+            if key == "pi5_base_url" and isinstance(value, str):
+                cfg.pi5_base_url = normalize_pi5_base_url(value)
+            elif isinstance(value, (int, float)):
                 setattr(cfg, key, float(value))
     return cfg
 
@@ -81,7 +101,7 @@ def get_config(override_path: Path = OVERRIDE_PATH) -> AppConfig:
 def update_config(
     updates: dict[str, Any], override_path: Path = OVERRIDE_PATH
 ) -> AppConfig:
-    """Validate and persist numeric calibration overrides."""
+    """Validate and persist numeric calibration overrides and Pi 5 URL."""
     editable_fields = {
         "q_pump_n",
         "q_pump_p",
@@ -95,12 +115,19 @@ def update_config(
         "min_move_cm",
     }
     cfg = get_config(override_path)
-    persisted: dict[str, float] = {}
+    persisted: dict[str, Any] = {}
     if override_path.exists():
         persisted = json.loads(override_path.read_text(encoding="utf-8"))
 
     for key, value in updates.items():
-        if key not in editable_fields or value is None:
+        if value is None:
+            continue
+        if key == "pi5_base_url":
+            normalized = normalize_pi5_base_url(str(value))
+            cfg.pi5_base_url = normalized
+            persisted["pi5_base_url"] = normalized
+            continue
+        if key not in editable_fields:
             continue
         num = float(value)
         if num <= 0:
