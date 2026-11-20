@@ -792,6 +792,12 @@ def create_app(
                 "k": float(row["pump_k_sec"]),
                 "water": float(row["pump_water_sec"]),
             }
+            volumes = {
+                "n": float(row["vol_n_ml"]),
+                "p": float(row["vol_p_ml"]),
+                "k": float(row["vol_k_ml"]),
+                "water": float(row["vol_water_ml"]),
+            }
             conn.execute("UPDATE mixing_jobs SET status = 'mixing' WHERE id = ?", (job_id,))
             conn.commit()
 
@@ -801,6 +807,7 @@ def create_app(
             durations,
             sync_for_test=sync_for_test,
             pi5_base_url=cfg.pi5_base_url,
+            volumes_ml=volumes,
         )
         if not started:
             return jsonify({"ok": False, "error": "ปั๊มกำลังทำงานอยู่ กรุณารอสักครู่หรือกดหยุดฉุกเฉิน"}), 409
@@ -812,6 +819,7 @@ def create_app(
                 "status": "mixing",
                 "gpio_pins": {"n": 17, "p": 27, "k": 22, "water": 23},
                 "durations_sec": durations,
+                "target_volumes_ml": volumes,
                 "hw_status": get_pump_hardware_status(),
             }
         )
@@ -1005,6 +1013,53 @@ def create_app(
                 "mode": op_mode,
                 "green_coverage_pct": green_pct,
                 "mask_image_url": f"/static/uploads/{filename}",
+            }
+        )
+
+    @flask_app.post("/api/drone/analyze-sample")
+    def analyze_sample_plot() -> Any:
+        """Generate a realistic simulated aerial crop tray photo and run ExG detection."""
+        import cv2
+        import numpy as np
+
+        data = request.get_json(silent=True) or {}
+        plot_id = str(data.get("plot_id") or "1")
+        op_mode = _normalize_mode(data.get("mode"), True)
+        cfg = get_config(override_path)
+
+        # Build a 480x360 dark-soil background with realistic crop leaf clusters
+        img = np.full((360, 480, 3), (42, 56, 74), dtype=np.uint8)  # BGR loam soil
+        rng = np.random.default_rng(42)
+        for row_y in range(55, 320, 62):
+            for col_x in range(60, 430, 68):
+                cx = col_x + int(rng.integers(-6, 7))
+                cy = row_y + int(rng.integers(-5, 6))
+                cv2.circle(img, (cx, cy), int(rng.integers(16, 25)), (34, 152, 52), -1)
+                cv2.circle(img, (cx - 8, cy + 5), int(rng.integers(10, 16)), (44, 178, 68), -1)
+                cv2.circle(img, (cx + 9, cy - 4), int(rng.integers(9, 15)), (28, 134, 46), -1)
+
+        ok, enc = cv2.imencode(".png", img)
+        if not ok:
+            return jsonify({"error": "Failed to encode sample plot image"}), 500
+        image_bytes = enc.tobytes()
+
+        Path(upload_dir).mkdir(parents=True, exist_ok=True)
+        ts = int(time.time() * 1000)
+        orig_name = f"orig_sim_{plot_id}_{ts}.png"
+        mask_name = f"mask_sim_{plot_id}_{ts}.png"
+        (Path(upload_dir) / orig_name).write_bytes(image_bytes)
+        green_pct = analyze_green_coverage(
+            image_bytes=image_bytes,
+            output_mask_path=Path(upload_dir) / mask_name,
+            threshold=cfg.exg_green_threshold,
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "mode": op_mode,
+                "green_coverage_pct": green_pct,
+                "orig_image_url": f"/static/uploads/{orig_name}",
+                "mask_image_url": f"/static/uploads/{mask_name}",
             }
         )
 

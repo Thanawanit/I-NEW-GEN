@@ -532,8 +532,19 @@ class TestFlaskAPI(unittest.TestCase):
 
             disp_remote = self.client.post("/api/mixer/dispense-live", json={"_sync_for_test": True})
             self.assertEqual(disp_remote.status_code, 200)
+            disp_json = disp_remote.get_json()
+            self.assertIn("target_volumes_ml", disp_json)
+            self.assertIn("progress_pct", disp_json["hw_status"])
             self.assertTrue(len(pump_calls) >= 1)
             self.assertTrue(all(call["pump"] in {"N", "P", "K", "W"} for call in pump_calls))
+
+        sample_resp = self.client.post("/api/drone/analyze-sample", json={"plot_id": plot_id, "mode": "sim"})
+        self.assertEqual(sample_resp.status_code, 200)
+        sample_json = sample_resp.get_json()
+        self.assertTrue(sample_json["ok"])
+        self.assertGreater(sample_json["green_coverage_pct"], 0.0)
+        self.assertIn("orig_image_url", sample_json)
+        self.assertIn("mask_image_url", sample_json)
 
 
 if __name__ == "__main__":

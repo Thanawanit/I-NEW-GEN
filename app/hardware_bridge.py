@@ -111,6 +111,12 @@ _dispense_state: dict[str, Any] = {
     "is_running": False,
     "active_job_id": None,
     "current_step": "",
+    "active_channel": None,
+    "completed_ml": 0.0,
+    "channel_target_ml": 0.0,
+    "channel_target_s": 0.0,
+    "channel_started_at": None,
+    "target_total_ml": 0.0,
     "last_error": None,
     "gpio_available": GPIO_AVAILABLE,
 }
@@ -142,8 +148,28 @@ atexit.register(force_stop_all_pumps)
 
 
 def get_pump_hardware_status() -> dict[str, Any]:
-    """Return thread-safe snapshot of Raspberry Pi GPIO dispensing state."""
-    return dict(_dispense_state)
+    """Return thread-safe snapshot of Raspberry Pi GPIO dispensing state with live ml/pct."""
+    snap = dict(_dispense_state)
+    target_total = float(snap.get("target_total_ml") or 0.0)
+    completed = float(snap.get("completed_ml") or 0.0)
+    ch_started = snap.get("channel_started_at")
+    ch_dur = float(snap.get("channel_target_s") or 0.0)
+    ch_ml = float(snap.get("channel_target_ml") or 0.0)
+    in_flight_ml = 0.0
+    if snap.get("is_running") and ch_started is not None and ch_dur > 0 and ch_ml > 0:
+        frac = min(1.0, max(0.0, (time.perf_counter() - float(ch_started)) / ch_dur))
+        in_flight_ml = ch_ml * frac
+    dispensed = completed + in_flight_ml
+    if target_total > 0:
+        dispensed = min(target_total, dispensed)
+        pct = min(100.0, (dispensed / target_total) * 100.0)
+    else:
+        pct = 0.0
+    snap["dispensed_ml"] = round(dispensed, 1)
+    snap["target_total_ml"] = round(target_total, 1)
+    snap["progress_pct"] = round(pct, 1)
+    snap.pop("channel_started_at", None)
+    return snap
 
 
 def _wait_precise(deadline: float) -> bool:
@@ -234,6 +260,7 @@ def start_sequential_dispense(
     on_complete: Callable[[int, str], None] | None = None,
     sync_for_test: bool = False,
     pi5_base_url: str = "",
+    volumes_ml: dict[str, float] | None = None,
 ) -> bool:
     """Run N -> P -> K -> Water sequentially on local Pi GPIO or remote untouched Pi 5 (:10000)."""
     global _stop_requested
@@ -244,26 +271,40 @@ def start_sequential_dispense(
     if not remote_base:
         init_pumps()
 
+    vols = volumes_ml or {}
+    total_target_ml = sum(float(vols.get(k, 0.0) or 0.0) for k in ("n", "p", "k", "water"))
     _stop_requested = False
     _dispense_state["is_running"] = True
     _dispense_state["active_job_id"] = job_id
+    _dispense_state["active_channel"] = None
+    _dispense_state["completed_ml"] = 0.0
+    _dispense_state["channel_target_ml"] = 0.0
+    _dispense_state["channel_target_s"] = 0.0
+    _dispense_state["channel_started_at"] = None
+    _dispense_state["target_total_ml"] = total_target_ml
     _dispense_state["last_error"] = None
 
     def _worker() -> None:
         final_status = "mixing"
         try:
             sequence = [
-                ("n", "N", "Nitrogen (N) [GPIO 17]"),
-                ("p", "P", "Phosphorus (P) [GPIO 27]"),
-                ("k", "K", "Potassium (K) [GPIO 22]"),
-                ("water", "W", "Water [GPIO 23]"),
+                ("n", "N", "กำลังจ่ายปุ๋ย N (ไนโตรเจน)"),
+                ("p", "P", "กำลังจ่ายปุ๋ย P (ฟอสฟอรัส)"),
+                ("k", "K", "กำลังจ่ายปุ๋ย K (โพแทสเซียม)"),
+                ("water", "W", "กำลังจ่ายน้ำเปล่าเจือจาง"),
             ]
             for key, remote_key, label in sequence:
                 dur = float(durations_s.get(key, 0.0) or 0.0)
                 if dur <= 0 or _stop_requested:
                     continue
+                ch_vol = float(vols.get(key, 0.0) or 0.0)
+                _dispense_state["active_channel"] = key
+                _dispense_state["channel_target_ml"] = ch_vol
+                _dispense_state["channel_target_s"] = dur
+                _dispense_state["channel_started_at"] = time.perf_counter()
+
                 if remote_base:
-                    _dispense_state["current_step"] = f"Remote Pi5 -> {label}"
+                    _dispense_state["current_step"] = f"{label} (Pi 5)"
                     safe_dur = round(min(dur, 120.0), 3)
                     _http_json(
                         f"{remote_base}/api/pump_test",
@@ -273,7 +314,11 @@ def start_sequential_dispense(
                     )
                 else:
                     _run_single_pump(_pumps[key], label, dur)
+
                 if not _stop_requested:
+                    _dispense_state["completed_ml"] = float(_dispense_state["completed_ml"]) + ch_vol
+                    _dispense_state["channel_started_at"] = None
+                    _dispense_state["channel_target_ml"] = 0.0
                     time.sleep(0.2)
             if _stop_requested:
                 final_status = "stopped"
@@ -288,7 +333,10 @@ def start_sequential_dispense(
                     except Exception:
                         pass
             _dispense_state["is_running"] = False
-            _dispense_state["current_step"] = "idle" if not _stop_requested else "stopped"
+            _dispense_state["active_channel"] = None
+            _dispense_state["channel_started_at"] = None
+            _dispense_state["channel_target_ml"] = 0.0
+            _dispense_state["current_step"] = "จ่ายครบถ้วนแล้ว" if not _stop_requested else "หยุดฉุกเฉินแล้ว"
             if on_complete is not None:
                 on_complete(job_id, final_status)
 
