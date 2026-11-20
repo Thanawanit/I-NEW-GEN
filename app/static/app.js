@@ -270,6 +270,83 @@ async function refreshSoilPointsUI() {
   }
 }
 
+let _autoProbeTimer = null;
+let _autoProbeRunning = false;
+
+function stopAutoSoilProbing(announce = true) {
+  _autoProbeRunning = false;
+  if (_autoProbeTimer) {
+    clearTimeout(_autoProbeTimer);
+    _autoProbeTimer = null;
+  }
+  const startBtn = document.getElementById("btn-start-auto-probe");
+  const stopBtn = document.getElementById("btn-stop-auto-probe");
+  if (startBtn) startBtn.disabled = false;
+  if (stopBtn) stopBtn.disabled = true;
+  if (announce) {
+    speakThaiPrompt("หยุดการตรวจวัดดินแล้ว");
+  }
+}
+
+async function startAutoSoilProbing() {
+  if (_autoProbeRunning) return;
+  _autoProbeRunning = true;
+  const startBtn = document.getElementById("btn-start-auto-probe");
+  const stopBtn = document.getElementById("btn-stop-auto-probe");
+  if (startBtn) startBtn.disabled = true;
+  if (stopBtn) stopBtn.disabled = false;
+
+  const s = currentModeState();
+  const points = s.soilPoints?.points || [];
+  let currentPoint = points.find((p) => p.n === null)?.point_index || 1;
+  speakThaiPrompt(`เริ่มปักลงบนดินได้ จุดที่ ${currentPoint}`);
+
+  const cfg = await apiRequest("/api/config");
+
+  const runNextStep = async () => {
+    if (!_autoProbeRunning) return;
+    const mode = appState.activeMode;
+    if (mode === "live" && cfg && cfg.pi5_base_url) {
+      await apiRequest("/api/soil/sync-pi5", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plot_id: s.plot.id || 1 }),
+      });
+      await refreshBackendForActiveMode();
+    }
+
+    const res = await apiRequest("/api/soil/points", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        plot_id: s.plot.id || 1,
+        mode,
+        point_index: currentPoint,
+        action: "record",
+      }),
+    });
+
+    if (res && !res.__error) {
+      s.soilPoints = res;
+      renderSoilPointsGrid(res);
+      if (currentPoint >= 15) {
+        speakThaiPrompt("ตรวจครบ 15 จุดเสร็จสิ้นแล้วครับ");
+        stopAutoSoilProbing(false);
+        return;
+      }
+      const donePt = currentPoint;
+      currentPoint += 1;
+      speakThaiPrompt(`ตรวจครั้งที่ ${donePt} เสร็จสิ้น เริ่มปักครั้งที่ ${currentPoint}`);
+    }
+
+    if (_autoProbeRunning) {
+      _autoProbeTimer = setTimeout(runNextStep, 4000);
+    }
+  };
+
+  _autoProbeTimer = setTimeout(runNextStep, 3500);
+}
+
 async function recordSoilPoint(pointIndex) {
   const s = currentModeState();
   const res = await apiRequest("/api/soil/points", {
@@ -901,12 +978,8 @@ function bindWorkspace3() {
     await refreshBackendForActiveMode();
   });
 
-  document.getElementById("btn-record-next-point").addEventListener("click", async () => {
-    const s = currentModeState();
-    const points = s.soilPoints?.points || [];
-    const nextPt = points.find((p) => p.n === null)?.point_index || 1;
-    await recordSoilPoint(nextPt);
-  });
+  document.getElementById("btn-start-auto-probe").addEventListener("click", startAutoSoilProbing);
+  document.getElementById("btn-stop-auto-probe").addEventListener("click", () => stopAutoSoilProbing(true));
 
   document.getElementById("btn-clear-soil-points").addEventListener("click", async () => {
     const s = currentModeState();
