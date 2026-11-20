@@ -1,6 +1,6 @@
-# Software Architecture, Mathematical Formulas & Crop Database Spec — `v1.5`
+# Software Architecture, Mathematical Formulas & Crop Database Spec — `v1.6`
 
-> **วัตถุประสงค์เอกสาร:** กำหนดสถาปัตยกรรมซอฟต์แวร์ (รันบน **Raspberry Pi 5** + **Unified ESP32 1 บอร์ด**) โครงสร้างฐานข้อมูลพืช/พันธุ์/ระยะการเจริญเติบโต ชุดสูตรคำนวณทางคณิตศาสตร์ทั้งหมด (พร้อมตัวอย่างการแทนค่า) และ API Contract สำหรับเชื่อมต่อเว็บ, โดรน และบอร์ด ESP32
+> **วัตถุประสงค์เอกสาร:** กำหนดสถาปัตยกรรมซอฟต์แวร์ (รันบน **Raspberry Pi 5 คุมปั๊ม GPIO 17,27,22,23 + Arduino RS485 + 1 ESP32 แบบ B**) โครงสร้างฐานข้อมูลพืช/พันธุ์/ระยะการเจริญเติบโต ชุดสูตรคำนวณทางคณิตศาสตร์ทั้งหมด (พร้อมตัวอย่างการแทนค่า) และ API Contract สำหรับเชื่อมต่อเว็บ, โดรน และบอร์ด ESP32
 
 ---
 
@@ -13,7 +13,7 @@
 | **Machine Learning (AI)** | **scikit-learn (`RandomForestRegressor`)** | ประมวลผลตัวแปรตาราง 9 มิติ (ชนิดพืช/ระยะเติบโต, ความลึกราก, ความหนาแน่นดิน, N, P, K, pH, ความชื้นดิน, และดัชนีความเขียว `ExG %`) เพื่อพยากรณ์ความต้องการปุ๋ยแบบไม่เป็นเชิงเส้น พร้อมคำนวณค่า $R^2$, `MAE` และ `Feature Importance (%)` |
 | **Image Processing** | **OpenCV (`cv2`) + NumPy** | อ่านภาพถ่ายจากโดรนรอบที่ 1 (OpenCV อ่านสีเป็น **BGR** ต้องแปลงเป็น `int16` ก่อนคำนวณ $2G - R - B$ เพื่อป้องกัน `uint8` overflow) |
 | **Database** | **SQLite** | จัดเก็บข้อมูลแปลงเกษตร, เกณฑ์ธาตุอาหารพืช 3 ชนิด, ค่าตรวจดินสด, สถานะถังหมัก 3 ถัง และประวัติการสั่งผสม/บินพ่น |
-| **IoT Firmware** | Arduino C++ (สำหรับ **Unified ESP32 1 บอร์ด** รวม Soil + Fermenter + Mixer) | อ่านค่าเซนเซอร์และยิง HTTP POST/GET JSON เข้า Flask Server บน Raspberry Pi 5 ผ่าน Wi-Fi 2.4 GHz วงเดียวกัน |
+| **IoT Firmware** | Arduino C++ (RS485 หัววัดดิน ส่งเข้า Pi 5 ผ่าน USB/LoRa) + ESP32 (แบบ B: DS18B20 3 ถัง + TDS/EC ผ่าน Wi-Fi) |
 
 ---
 
@@ -225,12 +225,13 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
 | `/api/fermenter/latest` | `GET` | Web UI $\leftarrow$ Flask | **Resp `200`:** `{"mode": "live", "telemetry": {"temp_n": 31.2, "temp_p": 30.8, "temp_k": 31.5, "temp_mixer": null, "mixer_tds_ppm": 740, "is_ready": true, "recorded_at": "..."}}` *(Backend แปลงคอลัมน์ `temp_*_c` ใน SQLite เป็น `temp_n, temp_p, temp_k, temp_mixer` ให้ตรงกับขา POST)* |
 | `/api/mixer/calculate` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `{"plot_id": 1, "mode": "sim", "crop_profile_id": 2, "confirmed_area_m2": 100.0, "soil_type": "loam"}`<br>**Resp `200`:** `{"job_id": 5, "status": "pending", "deficits_g": {"n": 448.1, "p2o5": 72.7, "k2o": 0.0}, "demo_volumes_ml": {"n": 68.83, "p": 11.17, "k": 0.0, "water": 120.0}, "pump_seconds": {"n": 13.77, "p": 2.23, "k": 0.0, "water": 24.0}, "ph_warning": null}` |
 | `/api/mixer/command?mode=live` | `GET` | ESP32 #2 $\leftarrow$ Flask | **Resp `200` (มีงานค้าง — เปลี่ยนสถานะงานใน DB เป็น `'mixing'` ทันทีเพื่อกันการดึงซ้ำ และแปลงวินาทีเป็น ms ด้วย `int(round(pump_sec * 1000))`):** `{"has_command": true, "mode": "live", "job_id": 5, "status": "mixing", "pump_n_ms": 13770, "pump_p_ms": 2230, "pump_k_ms": 0, "pump_water_ms": 24000}`<br>**Resp `200` (ไม่มีงาน):** `{"has_command": false, "mode": "live", "job_id": null}` |
-| `/api/mixer/status` | `POST` | ESP32 #2 $\rightarrow$ Flask | **Req:** `{"job_id": 5, "status": "mixing", "final_tds_ppm": null}` *(ส่งเมื่อปั๊มหยุดทำงานเพื่อรอผู้ใช้จุ่มวัด TDS หรือส่ง `"status": "ready"` เมื่อยืนยันค่าแล้ว)*<br>**Resp `200`:** `{"ok": true, "status": "mixing"}` |
+| `/api/mixer/dispense-live` | `POST` | Web UI $\rightarrow$ Pi 5 GPIO | **Req:** `{}`<br>**Resp `200`:** `{"ok": true, "job_id": 5, "status": "mixing", "gpio_pins": {"n": 17, "p": 27, "k": 22, "water": 23}}` *(สั่งปั๊ม 4 ตัวตรงบน GPIO ของ Pi 5; หยุดฉุกเฉินผ่าน `POST /api/mixer/stop-live`)* |
+| `/api/mixer/status` | `POST` | Web/ESP32 $\rightarrow$ Flask | **Req:** `{"job_id": 5, "status": "mixing", "final_tds_ppm": null}` *(ส่งเมื่อปั๊มหยุดทำงานเพื่อรอผู้ใช้จุ่มวัด TDS หรือส่ง `"status": "ready"` เมื่อยืนยันค่าแล้ว)*<br>**Resp `200`:** `{"ok": true, "status": "mixing"}` |
 | `/api/mixer/check-ec` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `{"job_id": 5, "mode": "sim", "simulated": true}`<br>**Resp `200`:** `{"measured_tds_ppm": 780, "safe_ec_max_ppm": 1000, "needs_dilution": false, "add_water_ml": 0.0, "add_water_sec": 0.0, "message": "ค่าความเค็มอยู่ในเกณฑ์ปลอดภัย"}` |
 | `/api/drone/mission` | `POST` | Web UI $\rightarrow$ Flask Drone | **Req:** `{"plot_id": 1, "job_id": 5, "mode": "survey_photo", "execution_mode": "SIMULATED", "waypoints_cm": [...]}` *(`mode` รับค่า `"survey_photo"` สำหรับบินสำรวจรอบที่ 1 หรือ `"spray_fertilizer"` สำหรับบินพ่นปุ๋ยรอบที่ 2)*<br>**Resp `200`:** `{"ok": true, "execution_mode": "SIMULATED", "mode": "survey_photo", "status": "completed", "message": "..."}` |
 | `/api/drone/analyze-image` | `POST` | Web UI $\rightarrow$ Flask | **Req:** `multipart/form-data` (`image` file + `plot_id` + `mode`)<br>**Resp `200`:** `{"green_coverage_pct": 64.2, "mask_image_url": "/static/uploads/mask_sim_1.png"}` |
 | `/api/ml/metrics` | `GET` | Web UI $\leftarrow$ Flask | **Resp `200`:** `{"model_name": "RandomForestRegressor (scikit-learn)", "n_estimators": 120, "training_samples": 18000, "r2_score": 0.9612, "mae_g_m2": 0.142, "feature_importances_pct": {...}}` |
-| `/api/config` | `GET`/`POST` | Web UI $\leftrightarrow$ Flask | **JSON:** `{"q_pump_n": 5.0, "q_pump_p": 5.0, "q_pump_k": 5.0, "q_pump_water": 5.0, "c_bio_n": 2.0, "c_bio_p2o5": 2.0, "c_bio_k2o": 2.0, "water_tds_ppm": 150.0, "table_width_cm": 40.0, "table_height_cm": 60.0}` |
+| `/api/config` | `GET`/`POST` | Web UI $\leftrightarrow$ Flask | **JSON:** `{"q_pump_n": 3.03, "q_pump_p": 2.0, "q_pump_k": 6.4, "q_pump_water": 22.08, "c_bio_n": 2.0, "c_bio_p2o5": 2.0, "c_bio_k2o": 2.0, "water_tds_ppm": 150.0, "table_width_cm": 40.0, "table_height_cm": 60.0}` |
 
 ---
 

@@ -1,10 +1,10 @@
 System Overview & Master Plan: Smart Bio-Fert Drone System (Demo Scale)
 
-- เวอร์ชันเอกสาร: `v1.5` (`2026-11-17`)
+- เวอร์ชันเอกสาร: `v1.6` (`2026-11-20`)
 - ลำดับความสำคัญเมื่อข้อมูลขัดกัน: `03 (สูตร/API) > 02 (ฮาร์ดแวร์) > 04 (ขั้นตอนปฏิบัติ) > 01 (ภาพรวม)`
-- กฎเหล็กสำหรับ AI และทีม: หากข้อมูลส่วนใดอยู่ในตาราง `TBD` หรือไม่ได้ระบุไว้ ห้ามเดาหรือคิดเลขเองเด็ดขาด ให้ใช้ค่า Placeholder ใน `config.py` และแจ้งหัวหน้าทีมเพื่อออกเวอร์ชันใหม่ (`v1.5`)
+- กฎเหล็กสำหรับ AI และทีม: หากข้อมูลส่วนใดอยู่ในตาราง `TBD` หรือไม่ได้ระบุไว้ ห้ามเดาหรือคิดเลขเองเด็ดขาด ให้ใช้ค่า Placeholder ใน `config.py` และแจ้งหัวหน้าทีมเพื่อออกเวอร์ชันใหม่ (`v1.6`)
 
-> สถานะเอกสาร: ข้อมูลชุดใหม่ทั้งหมดสำหรับต้นแบบบนโต๊ะ 1 ตัวในร่ม (Indoor Tabletop Demo) ใช้สถาปัตยกรรม `1 Raspberry Pi 5 (Server/AI) + 1 ESP32 (Unified IoT)` ภายใต้งบประมาณฮาร์ดแวร์รวมไม่เกิน 3,000 บาท (ไม่รวม Raspberry Pi 5, บอร์ด ESP32 1 บอร์ด และสายจัมเปอร์ที่โรงเรียนสนับสนุน)
+> สถานะเอกสาร: อัปเดตสถาปัตยกรรม `v1.6` ต่อยอดจากฮาร์ดแวร์เดิมใน `Back/` (`INEWGEN`): `Raspberry Pi 5 (Flask/AI/Drone + คุมปั๊ม 4 ตัวตรง GPIO 17,27,22,23) + Arduino RS485 (หัววัดดิน USB/LoRa) + 1 ESP32 (แบบ B: DS18B20 3 ถัง + TDS/EC)` ภายใต้งบส่วนต่อเติม (โดรน/ถังหมัก/TDS) ≤ 3,000 บาท (ไม่รวมชุดปั๊ม+หัววัดดิน RS485 และ Raspberry Pi 5 / ESP32 ที่มีอยู่แล้ว)
 
 ---
 
@@ -22,25 +22,22 @@ System Overview & Master Plan: Smart Bio-Fert Drone System (Demo Scale)
 
 2. สถาปัตยกรรมระบบ (System Architecture)
 
-+-----------------------------------------------------------------------+
-|             1. WEB & AI SERVER (Raspberry Pi 5 — Python Flask)        |
-|  - Map UI (Leaflet + Esri Satellite): Draw Polygon -> Area (m^2)      |
-|  - Crop Form: Crop Type / Variety / Growth Stage                      |
-|  - Image Analysis (OpenCV): ExG Green Index                           |
-|  - Hybrid AI Calculator: Agronomic Balance + Random Forest (sklearn)  |
-+-------+-------------------------------------------+-------------------+
-        | (USB Wi-Fi Dongle -> Drone)               | (HTTP REST API over 2.4 GHz Wi-Fi)
-        v                                           v
-+---------------+                     +-----------------------------------+
-| 2. MICRO DRONE|                     | 3. UNIFIED IOT NODE (1x ESP32)    |
-|    (Modular)  |                     |  [Soil] - Soil Moisture (GPIO 34) |
-| Flight 1: Cam |                     |         + LDD Test Kit (Manual)   |
-| Flight 2:     |                     |  [Bio]  - 3x Bio Tanks (2L)       |
-| 8-10ml Spray  |                     |         - 3x DS18B20 (GPIO 4)     |
-+---------------+                     |         - Air Pump (Aerobic)      |
-                                      |  [Mix]  - 4x Liquid Pumps + Relay |
-                                      |         - TDS/EC Check (GPIO 35)  |
-                                      +-----------------------------------+
++-----------------------------------------------------------------------------+
+|       1. WEB, AI & MIXER CONTROLLER (Raspberry Pi 5 — Python Flask)         |
+|  - Map UI (Leaflet + Esri Satellite): Draw Polygon -> Area (m^2)            |
+|  - Crop DB (4 พืช 12 โปรไฟล์: ข้าว, ถั่วลิสง, ถั่วลายเสือ, ถั่วเหลือง)         |
+|  - Image Analysis (OpenCV): ExG Green Index + Random Forest (R^2 = 0.9859) |
+|  - Direct GPIO Pump Control (4x Peristaltic: GPIO 17, 27, 22, 23 Active-LOW)|
++-------+-----------------------------------+-----------------------------+---+
+        | (USB Wi-Fi -> Drone)              | (USB Serial / LoRa)         | (HTTP Wi-Fi)
+        v                                   ^                             ^
++---------------+               +-----------------------+     +-----------------------+
+| 2. MICRO DRONE|               | 3. ARDUINO SOIL NODE  |     | 4. ESP32 FERMENTER    |
+|    (Modular)  |               |   (Back/sketch.ino)   |     |    & TDS (แบบ B)      |
+| Flight 1: Cam |               | - RS485 NPK + pH Probe|     | - 3x DS18B20 (GPIO 4) |
+| Flight 2:     |               | - MAX485 (D3, D4, D5) |     | - TDS/EC Probe(GPIO35)|
+| 8-10ml Spray  |               | - USB Serial / LoRa   |     | - Air Pump (Aerobic)  |
++---------------+               +-----------------------+     +-----------------------+
 
 ---
 
@@ -52,8 +49,8 @@ System Overview & Master Plan: Smart Bio-Fert Drone System (Demo Scale)
 | 2 | กำหนดขอบเขตแปลง & ยืนยันพื้นที่ | ลากเส้น Polygon บนแผนที่ดาวเทียม (Leaflet) -> ระบบคำนวณพื้นที่ (m^2) -> ผู้ใช้กด ยืนยัน หรือ แก้ไขตัวเลขพื้นที่จริง และตั้งค่าสเกลย่อส่วนสำหรับพื้นที่บินบนโต๊ะ |
 | 3 | กรอกข้อมูลพืชเป้าหมาย | เลือก ชนิดพืช (ถั่วลิสงพันธุ์ลายเสือ / ข้าวโพดเลี้ยงสัตว์ / กาแฟอราบิก้า), พันธุ์, และ ระยะการเจริญเติบโต (ต้นกล้า / เจริญเติบโต / ออกดอก-ติดผล) |
 | 4 | โดรนรอบที่ 1: บินสำรวจถ่ายภาพ | เว็บแปลงเส้นทางขอบเขตเป็นคำสั่งบินอัตโนมัติย่อสเกล (ระยะ cm และมุมเลี้ยว) ส่งให้โดรนบินถ่ายภาพแปลงจำลอง -> ส่งภาพกลับเข้าเว็บเพื่อคำนวณค่าพื้นที่สีเขียว (ExG) |
-| 5–6 | ตรวจค่าดินและเด้งเข้าเว็บทันที | จิ้มหัววัดความชื้นดิน (Capacitive) ลงถาดดินจริงจากแปลงส่งค่าเข้าเว็บแบบเรียลไทม์ (`ec_us_cm: null`) ควบคู่กับบันทึกผลระดับ N, P, K, pH จากชุดตรวจดินเคมี (LDD Soil Test Kit) |
-| 7 | คำนวณสูตร & สั่งเครื่องหมัก/ผสม | เว็บเช็กความพร้อมถังหมัก (อุณหภูมิ) -> คำนวณ Delta  N, Delta  P, Delta  K และเวลาเปิดปั๊ม -> สั่ง ESP32 เปิดปั๊มจุ่มจ่ายน้ำหมัก N, P, K และน้ำเปล่าลงถังผสม -> ผู้ใช้กวนและจุ่มหัววัดตรวจค่า TDS/EC ก่อนอนุญาตให้นำไปพ่น |
+| 5–6 | ตรวจค่าดินและเด้งเข้าเว็บทันที | จิ้มหัววัดดิน RS485 NPK+pH (`Arduino + MAX485`) ลงถาดดินจริงจากแปลง ส่งค่าเข้า Pi 5 ผ่าน USB Serial / LoRa แบบเรียลไทม์ (`POST /api/soil/update`) และ/หรือบันทึกผล LDD Soil Test Kit คู่กัน |
+| 7 | คำนวณสูตร & สั่งเครื่องหมัก/ผสม | เว็บเช็กอุณหภูมิ 3 ถังหมักจาก ESP32 -> คำนวณ Delta  N, Delta  P, Delta  K (สมดุลมวล + Random Forest) -> Raspberry Pi 5 สั่งปั๊ม 4 ตัวตรงที่ GPIO 17, 27, 22, 23 (`POST /api/mixer/dispense-live`) -> กวนและจุ่มหัววัด TDS/EC (ESP32 GPIO 35) ก่อนอนุญาตให้พ่น |
 | 8 | โดรนรอบที่ 2: เติมปุ๋ยและบินโปรย | ถอดกล้อง/ปรับโหมดเป็นชุดพ่น Modular -> ตักน้ำปุ๋ยที่ผสมเสร็จใส่ตลับสเปรย์ 8–10 ml (น้ำหนักใช้งานจริง `22–23 g` ใต้เพดานสูงสุด `≤ 25 g`) -> โดรนบินตามเส้นทางเดิมเหนือถาดแปลงจำลองพร้อมพ่นละอองฝอยสาธิต |
 
 ---
@@ -101,19 +98,19 @@ System Overview & Master Plan: Smart Bio-Fert Drone System (Demo Scale)
 
 sequenceDiagram
     actor User as ผู้ใช้งาน / กรรมการ
-    participant Web as Web UI + Flask (Raspberry Pi 5)
+    participant Web as Pi 5: Flask + GPIO Pumps
     participant Drone as Micro Drone (USB Wi-Fi)
-    participant ESP as Unified ESP32 (Soil + Fermenter & Mixer)
+    participant Arduino as Arduino RS485 (USB/LoRa)
+    participant ESP as ESP32 (DS18B20 + TDS)
 
     User->>Web: 1-3. วาดแปลง แก้พื้นที่ & เลือกพืช/พันธุ์/ระยะ
     Web->>Drone: 4. สั่งบินรอบ 1 (Waypoints cm ย่อสเกล)
     Drone-->>Web: ส่งภาพถ่ายแปลง -> OpenCV คำนวณ ExG (%)
-    ESP->>Web: 5-6. POST /api/soil/update (ความชื้น, ec_us_cm: null)
-    User->>Web: กรอกผล LDD Test Kit (N, P, K, pH) [MANUAL]
+    Arduino->>Web: 5-6. ส่งค่า pH, N, P, K (USB Serial / LoRa -> POST /api/soil/update)
+    User->>Web: (เสริม) กรอกผล LDD Test Kit [MANUAL]
     ESP->>Web: POST /api/fermenter/telemetry (Temp N/P/K, mixer_tds_ppm: null)
-    User->>Web: 7. กดคำนวณสูตร -> คิวคำสั่งผสมปุ๋ย (status: pending)
-    ESP->>Web: GET /api/mixer/command?mode=live (รับ ms ปั๊ม -> เปลี่ยนเป็น mixing)
-    ESP->>ESP: เปิดปั๊ม N, P, K, น้ำ ทีละตัวจนครบ
+    User->>Web: 7. กดคำนวณสูตร + กดสั่งเปิดปั๊ม (POST /api/mixer/dispense-live)
+    Web->>Web: Pi 5 สั่งปั๊ม GPIO 17, 27, 22, 23 ทีละตัวจนครบ
     User->>ESP: กวนถังผสม + จุ่มหัววัด TDS รอ 5 วินาที
     ESP->>Web: POST /api/fermenter/telemetry (ส่งค่า mixer_tds_ppm 30-sample median)
     User->>Web: กดปุ่ม POST /api/mixer/check-ec (ตัดสิน ready หรือ diluting)
@@ -126,13 +123,13 @@ sequenceDiagram
 
 > คำสั่งสำหรับ AI ผู้ช่วยของทีม: ห้ามแต่งตัวเลขแทนค่าในตารางนี้ ให้ใช้ค่า Placeholder ที่ระบุไว้ชั่วคราวแล้วรอค่าจริงจากผู้รับผิดชอบ
 
-| ค่าที่ยังไม่ทราบ | ผู้รับผิดชอบวัดจริง | ค่า Placeholder ระหว่างรอ |
+| ค่าที่ยังไม่ทราบ | ผู้รับผิดชอบวัดจริง | ค่าที่ล็อกไว้แล้ว / Placeholder ระหว่างรอ |
 | :--- | :---: | :--- |
-| `Q_pump` ทั้ง 4 ตัว (`ml/s`) | คนที่ 2 | `5.0 ml/s` (ใช้เฉพาะในโหมด `SIMULATED` ส่วนปั๊มจริงต้องหรี่ท่อ/วาล์วแล้ววัดใหม่) |
+| `Q_pump` ทั้ง 4 ตัว (`ml/s`) | สอบเทียบแล้วใน `Back/` | วัดจริงแล้ว: `N=3.03`, `P=2.00`, `K=6.40`, `W=22.08 ml/s` (ใส่ใน `config.py` แล้ว) |
 | 64-bit ROM Address ของ DS18B20 ทั้ง 3 ตัว (ถัง N, P, K) | คนที่ 2 | ยังไม่มี (ต้องอ่านจาก Serial Monitor ก่อนใช้จริง) |
 | ตัวคูณสอบเทียบ TDS (`K_cal`) | คนที่ 2 | `1.0` |
 | TDS ของน้ำเปล่าที่ใช้เจือจาง (`water_tds_ppm`) | คนที่ 2 | `150.0 ppm` |
 | ความเข้มข้นน้ำหมัก `C_bio` (N, P₂O₅, K₂O หน่วย `mg/ml`) | คนที่ 4 (ถ้าส่งแล็บ) | `2.0 mg/ml` เท่ากันทั้ง 3 ถัง *(ในระดับ Demo ใช้ค่านี้ได้เลยไม่ต้องวัดเอง เพื่อรักษาสัดส่วน Delta  M เว้นแต่ส่งตรวจห้องแล็บจริง)* |
 | รุ่นโดรน, ไลบรารี SDK, ระยะสั่งบินขั้นต่ำ | คนที่ 3 | ใช้โหมด `SIMULATED` เท่านั้นจนกว่าจะได้รุ่นโดรน |
 | อัตราพ่นของตลับ (`ml/s`) และน้ำหนักบรรทุกจริง | คนที่ 3 | ยังไม่มี (ต้องทดสอบจริงใน Day 6) |
-| ค่าเป้าหมายพืชตามคู่มือกรมวิชาการเกษตร (2565) ฉบับเต็ม | คนที่ 4 | ใช้ตารางอ้างอิงในไฟล์ `03` (`v1.4`) ไปก่อน |
+| ค่าเป้าหมายพืช 4 ชนิด (12 โปรไฟล์) | คนที่ 1 & คนที่ 4 | ใช้ตารางอ้างอิงกรมการข้าว/DOA ใน `database.py` และ `03` (`v1.6`) |

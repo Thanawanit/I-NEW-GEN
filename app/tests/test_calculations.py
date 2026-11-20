@@ -326,6 +326,36 @@ class TestFlaskAPI(unittest.TestCase):
         sim_drone = self.client.post("/api/drone/mission", json={"mode": "survey_photo", "execution_mode": "SIMULATED"})
         self.assertEqual(sim_drone.status_code, 200)
 
+        # 6. Inherited Back/ hardware bridge: calibrated flow rates, raw RS485 packet, and Pi GPIO dispense + stop
+        cfg_resp = self.client.get("/api/config").get_json()
+        self.assertAlmostEqual(cfg_resp["q_pump_n"], 3.03, places=2)
+        self.assertAlmostEqual(cfg_resp["q_pump_p"], 2.00, places=2)
+        self.assertAlmostEqual(cfg_resp["q_pump_k"], 6.40, places=2)
+        self.assertAlmostEqual(cfg_resp["q_pump_water"], 22.08, places=2)
+
+        raw_soil = self.client.post(
+            "/api/soil/update",
+            json={"plot_id": plot_id, "mode": "live", "raw": "pH:6.2,N:12,P:8,K:35", "source": "arduino_usb"},
+        )
+        self.assertEqual(raw_soil.status_code, 200)
+        soil_vals = raw_soil.get_json()["soil"]
+        self.assertAlmostEqual(soil_vals["ph"], 6.2)
+        self.assertAlmostEqual(soil_vals["n"], 12.0)
+
+        live_calc = self.client.post(
+            "/api/mixer/calculate",
+            json={"plot_id": plot_id, "mode": "live", "crop_profile_id": crops[0]["id"], "confirmed_area_m2": 100.0, "soil_type": "loam"},
+        )
+        self.assertEqual(live_calc.status_code, 200)
+
+        disp_resp = self.client.post("/api/mixer/dispense-live", json={})
+        self.assertEqual(disp_resp.status_code, 200)
+        self.assertEqual(disp_resp.get_json()["gpio_pins"], {"n": 17, "p": 27, "k": 22, "water": 23})
+
+        stop_resp = self.client.post("/api/mixer/stop-live")
+        self.assertEqual(stop_resp.status_code, 200)
+        self.assertFalse(stop_resp.get_json()["hw_status"]["is_running"])
+
 
 if __name__ == "__main__":
     unittest.main()

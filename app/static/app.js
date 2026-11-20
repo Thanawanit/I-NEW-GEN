@@ -209,6 +209,11 @@ async function refreshBackendForActiveMode() {
     s.soil.moisturePct = r.moisture_pct;
     s.soil.ecUsCm = r.ec_us_cm;
     s.soil.ph = r.ph_value;
+    if (r.nitrogen_mg_kg !== null && r.nitrogen_mg_kg !== undefined && !s.soil.nLevel) {
+      s.soil.nLevel = `${formatNum(r.nitrogen_mg_kg, 0)}`;
+      s.soil.pLevel = `${formatNum(r.phosphorus_mg_kg, 0)}`;
+      s.soil.kLevel = `${formatNum(r.potassium_mg_kg, 0)}`;
+    }
     s.soil.recordedAt = r.recorded_at;
     s.soil.provenance = prov;
   }
@@ -977,14 +982,27 @@ function bindWorkspace4() {
 
   document.getElementById("btn-send-mixer-live").addEventListener("click", async () => {
     const s = currentModeState();
-    const res = await apiRequest("/api/mixer/command?mode=live&peek=1");
-    if (!res || res.__error || !res.has_command) {
-      s.mixer.ecNotice = "ยังไม่มีคำสั่งผสมปุ๋ยในคิวของโหมดอุปกรณ์จริง (กรุณากดคำนวณสูตรก่อน)";
+    const res = await apiRequest("/api/mixer/dispense-live", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!res || res.__error || !res.ok) {
+      s.mixer.ecNotice = (res && (res.__error || res.error)) || "ยังไม่มีคำสั่งผสมปุ๋ยที่รอจ่ายในโหมด LIVE (กรุณากดคำนวณสูตรก่อน)";
       s.mixer.ecNoticeType = "danger";
     } else {
-      s.mixer.ecNotice = `จัดคิวคำสั่งให้ ESP32 #2 แล้ว (Job #${res.job_id}) รอบอร์ดดึงไปเปิดปั๊มจริง`;
+      const d = res.durations_sec || {};
+      s.mixer.ecNotice = `สั่งปั๊ม Raspberry Pi GPIO (17, 27, 22, 23) ทำงานแล้ว (Job #${res.job_id}: N ${formatNum(d.n, 1)}s, P ${formatNum(d.p, 1)}s, K ${formatNum(d.k, 1)}s, น้ำ ${formatNum(d.water, 1)}s)`;
       s.mixer.ecNoticeType = "ok";
     }
+    renderCurrentModeUI();
+  });
+
+  document.getElementById("btn-stop-mixer-live").addEventListener("click", async () => {
+    const s = currentModeState();
+    await apiRequest("/api/mixer/stop-live", { method: "POST" });
+    s.mixer.ecNotice = "สั่งหยุดปั๊มทั้ง 4 ตัวทันทีแล้ว (Emergency Stop)";
+    s.mixer.ecNoticeType = "danger";
     renderCurrentModeUI();
   });
 

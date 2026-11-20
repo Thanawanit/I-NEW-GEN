@@ -17,11 +17,11 @@ UPLOAD_DIR = APP_DIR / "static" / "uploads"
 class AppConfig:
     """Holds hardware calibration constants and demo scaling parameters."""
 
-    # Calibrated pump flow rates (ml/s) - updated by Teammate #2
-    q_pump_n: float = 5.0
-    q_pump_p: float = 5.0
-    q_pump_k: float = 5.0
-    q_pump_water: float = 5.0
+    # Calibrated pump flow rates (ml/s) inherited from Back/data/system_state.json (GPIO 17, 27, 22, 23)
+    q_pump_n: float = 3.03
+    q_pump_p: float = 2.00
+    q_pump_k: float = 6.40
+    q_pump_water: float = 22.08
 
     # Bio-liquid nutrient concentrations (mg/ml) - equal placeholder (2.0) until Teammate #4 measures real values
     c_bio_n: float = 2.0
@@ -33,10 +33,10 @@ class AppConfig:
     table_height_cm: float = 60.0
     min_move_cm: float = 20.0
 
-    # Mixing batch & safety thresholds
+    # Mixing batch & safety thresholds (0.5s guard matches perf_counter sub-ms Pi GPIO timing)
     demo_batch_ml: float = 200.0
     demo_bio_ml: float = 80.0
-    min_pump_runtime_s: float = 1.5
+    min_pump_runtime_s: float = 0.5
     water_tds_ppm: float = 150.0
     exg_green_threshold: int = 20
     fermenter_temp_min_c: float = 25.0

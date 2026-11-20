@@ -414,10 +414,10 @@
             </div>
 
             <div class="control-group-block">
-              <div class="control-group-label">ข. ข้อมูลหัววัดดิน (ESP32 #1) และชุดตรวจดิน LDD Test Kit</div>
+              <div class="control-group-label">ข. ข้อมูลหัววัดดิน RS485 (Arduino USB/LoRa) และชุดตรวจดิน LDD</div>
               <div class="action-strip">
                 <button id="btn-refresh-soil" type="button" class="btn btn-primary btn-sm live-only">
-                  ดึงค่าจริงล่าสุดจาก ESP32 #1 (LIVE)
+                  ดึงค่าจริงล่าสุดจากหัววัดดิน (LIVE)
                 </button>
                 <button id="btn-sim-soil" type="button" class="btn btn-sim btn-sm sim-only">
                   ส่งค่าดินจำลองเข้าสู่โหมด Demo (SIMULATED)
@@ -566,7 +566,10 @@
                 คำนวณสูตรปุ๋ยเฉพาะจุด
               </button>
               <button id="btn-send-mixer-live" type="button" class="btn btn-primary btn-sm live-only">
-                ส่งคำสั่งเข้าคิวเครื่องผสมจริง (ESP32 #2)
+                สั่งเปิดปั๊มผสมจริงทันที (Pi 5 GPIO)
+              </button>
+              <button id="btn-stop-mixer-live" type="button" class="btn btn-secondary btn-sm live-only">
+                หยุดปั๊มฉุกเฉิน
               </button>
               <button id="btn-check-ec-live" type="button" class="btn btn-secondary btn-sm live-only">
                 ตรวจค่า EC จากถังผสมจริง (LIVE)

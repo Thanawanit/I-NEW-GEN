@@ -30,6 +30,12 @@ from config import (  # noqa: E402
     update_config,
 )
 from database import get_connection, init_db  # noqa: E402
+from hardware_bridge import (  # noqa: E402
+    force_stop_all_pumps,
+    get_pump_hardware_status,
+    parse_soil_packet,
+    start_sequential_dispense,
+)
 from ml_model import (  # noqa: E402
     FEATURE_LABELS_TH,
     get_or_train_rf_model,
@@ -141,7 +147,15 @@ def create_app(
         plot_id = int(data.get("plot_id") or 1)
         mode = _normalize_mode(data.get("mode"), data.get("simulated"))
         is_sim = mode == "sim"
-        source = "simulated" if is_sim else "esp32_live"
+        raw_packet = parse_soil_packet(str(data.get("raw") or ""))
+        source = "simulated" if is_sim else str(data.get("source") or ("arduino_rs485" if raw_packet else "live_sensor"))
+
+        in_n = data.get("n") if data.get("n") is not None else raw_packet.get("n")
+        in_p = data.get("p") if data.get("p") is not None else raw_packet.get("p")
+        in_k = data.get("k") if data.get("k") is not None else raw_packet.get("k")
+        in_ph = data.get("ph") if data.get("ph") is not None else raw_packet.get("ph")
+        in_moist = data.get("moisture_pct") if data.get("moisture_pct") is not None else raw_packet.get("moisture_pct")
+        in_ec = data.get("ec_us_cm") if data.get("ec_us_cm") is not None else raw_packet.get("ec_us_cm")
 
         with get_connection(db_path) as conn:
             prev_npk = conn.execute(
@@ -153,10 +167,22 @@ def create_app(
                 """,
                 (plot_id, mode),
             ).fetchone()
-            n_val = data.get("n") if data.get("n") is not None else (prev_npk["nitrogen_mg_kg"] if prev_npk else None)
-            p_val = data.get("p") if data.get("p") is not None else (prev_npk["phosphorus_mg_kg"] if prev_npk else None)
-            k_val = data.get("k") if data.get("k") is not None else (prev_npk["potassium_mg_kg"] if prev_npk else None)
-            ph_val = data.get("ph") if data.get("ph") is not None else (prev_npk["ph_value"] if prev_npk else None)
+            prev_moist = conn.execute(
+                """
+                SELECT moisture_pct, ec_us_cm
+                FROM soil_readings
+                WHERE plot_id = ? AND mode = ? AND moisture_pct IS NOT NULL
+                ORDER BY id DESC LIMIT 1
+                """,
+                (plot_id, mode),
+            ).fetchone()
+
+            n_val = in_n if in_n is not None else (prev_npk["nitrogen_mg_kg"] if prev_npk else None)
+            p_val = in_p if in_p is not None else (prev_npk["phosphorus_mg_kg"] if prev_npk else None)
+            k_val = in_k if in_k is not None else (prev_npk["potassium_mg_kg"] if prev_npk else None)
+            ph_val = in_ph if in_ph is not None else (prev_npk["ph_value"] if prev_npk else None)
+            moist_val = in_moist if in_moist is not None else (prev_moist["moisture_pct"] if prev_moist else None)
+            ec_val = in_ec if in_ec is not None else (prev_moist["ec_us_cm"] if prev_moist else None)
 
             conn.execute(
                 """
@@ -171,15 +197,22 @@ def create_app(
                     p_val,
                     k_val,
                     ph_val,
-                    data.get("moisture_pct"),
-                    data.get("ec_us_cm"),
+                    moist_val,
+                    ec_val,
                     source,
                     mode,
                 ),
             )
             conn.commit()
 
-        return jsonify({"ok": True, "mode": mode, "provenance": "SIMULATED" if is_sim else "LIVE"})
+        return jsonify(
+            {
+                "ok": True,
+                "mode": mode,
+                "provenance": "SIMULATED" if is_sim else "LIVE",
+                "soil": {"n": n_val, "p": p_val, "k": k_val, "ph": ph_val, "moisture_pct": moist_val, "ec_us_cm": ec_val},
+            }
+        )
 
     @flask_app.post("/api/soil/manual")
     def save_soil_manual() -> Any:
@@ -491,6 +524,57 @@ def create_app(
                 "pump_water_ms": int(round(row["pump_water_sec"] * 1000)),
             }
         )
+
+    @flask_app.post("/api/mixer/dispense-live")
+    def dispense_mixer_live() -> Any:
+        """Directly drive Raspberry Pi GPIO 17, 27, 22, 23 (inherited from Back/) for LIVE jobs."""
+        data = request.get_json(silent=True) or {}
+        sync_for_test = bool(data.get("_sync_for_test", False))
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM mixing_jobs
+                WHERE mode = 'live' AND status IN ('pending', 'diluting')
+                ORDER BY id DESC LIMIT 1
+                """
+            ).fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": "ยังไม่มีคำสั่งผสมปุ๋ยที่รอจ่ายในโหมด LIVE"}), 400
+            job_id = int(row["id"])
+            durations = {
+                "n": float(row["pump_n_sec"]),
+                "p": float(row["pump_p_sec"]),
+                "k": float(row["pump_k_sec"]),
+                "water": float(row["pump_water_sec"]),
+            }
+            conn.execute("UPDATE mixing_jobs SET status = 'mixing' WHERE id = ?", (job_id,))
+            conn.commit()
+
+        started = start_sequential_dispense(job_id, durations, sync_for_test=sync_for_test)
+        if not started:
+            return jsonify({"ok": False, "error": "ปั๊มกำลังทำงานอยู่ กรุณารอสักครู่หรือกดหยุดฉุกเฉิน"}), 409
+
+        return jsonify(
+            {
+                "ok": True,
+                "job_id": job_id,
+                "status": "mixing",
+                "gpio_pins": {"n": 17, "p": 27, "k": 22, "water": 23},
+                "durations_sec": durations,
+                "hw_status": get_pump_hardware_status(),
+            }
+        )
+
+    @flask_app.post("/api/mixer/stop-live")
+    def stop_mixer_live() -> Any:
+        """Emergency stop all 4 Raspberry Pi GPIO relays immediately."""
+        force_stop_all_pumps()
+        return jsonify({"ok": True, "hw_status": get_pump_hardware_status()})
+
+    @flask_app.get("/api/mixer/hw-status")
+    def get_mixer_hw_status() -> Any:
+        """Return current Raspberry Pi GPIO pump status."""
+        return jsonify(get_pump_hardware_status())
 
     @flask_app.post("/api/mixer/status")
     def update_mixer_status() -> Any:
