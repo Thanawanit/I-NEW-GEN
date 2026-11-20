@@ -280,6 +280,7 @@ class TestFlaskAPI(unittest.TestCase):
         self.assertEqual(calc_resp.status_code, 200)
         calc_json = calc_resp.get_json()
         job_id = calc_json["job_id"]
+        self.assertAlmostEqual(sum(calc_json["demo_volumes_ml"].values()), 1000.0, places=1)
         self.assertIn("rf_prediction", calc_json)
         self.assertGreater(calc_json["rf_prediction"]["r2_score"], 0.90)
 

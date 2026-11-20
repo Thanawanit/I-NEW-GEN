@@ -190,13 +190,13 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
 1. **ปริมาตรน้ำหมักที่ต้องการจริงตามทฤษฎี** (เมื่อความเข้มข้นน้ำหมักแต่ละถังคือ $C_{\text{bio}, i}$ หน่วย $\text{mg/ml}$ ของ $\text{N}, \text{P}_2\text{O}_5, \text{K}_2\text{O}$ จากค่า Placeholder ใน `config.py` — ตั้งเท่ากัน `2.0 mg/ml` ทั้ง 3 ถังเพื่อรักษาสัดส่วน $\Delta M$ จนกว่าคนที่ 4 จะวัดค่าจริง):
    $$V_{\text{real}, i}\ (\text{ml}) = \frac{\Delta M_i\ (\text{g}) \times 1000}{C_{\text{bio}, i}\ (\text{mg/ml})}$$
 2. **การย่อสเกลปริมาตรสำหรับผสมโชว์บนโต๊ะ (Demo Batch Scaling):**
-   ผสมในถังกลางปริมาตรรวม $V_{\text{batch}} = 200\text{ ml}$ โดยล็อกปริมาณน้ำหมักรวมคงที่ $V_{\text{demo\_bio}} = 80\text{ ml}$ และใช้ $\Delta M$ กำหนด **อัตราส่วน N : P : K** (ส่วนที่เหลือ $120\text{ ml}$ เป็นน้ำเปล่าเจือจาง):
+   ผสมในถังกลางปริมาตรรวม $V_{\text{batch}} = 1{,}000\text{ ml}$ (ตรงตามชุดปั๊ม `Back/`) โดยล็อกปริมาณน้ำหมักรวมคงที่ $V_{\text{demo\_bio}} = 400\text{ ml}$ และใช้ $\Delta M$ กำหนด **อัตราส่วน N : P : K** (ส่วนที่เหลือ $600\text{ ml}$ เป็นน้ำเปล่าเจือจาง):
    $$V_{\text{demo}, i} = V_{\text{demo\_bio}} \times \frac{V_{\text{real}, i}}{V_{\text{real, N}} + V_{\text{real, P}} + V_{\text{real, K}}}$$
    *(กรณีที่ดินไม่ขาดธาตุใดเลย คือผลรวม $V_{\text{real}} = 0$ ให้บันทึก `status = 'ready'`, คืนค่าเวลาทุกปั๊มเป็น `0.0 s` และแจ้งเตือนบนเว็บว่า "ดินมีความสมบูรณ์เพียงพอ ไม่ต้องเติมปุ๋ย")*
 
 3. **คำนวณเวลาเปิด-ปิดปั๊ม 4 ตัว ($t_{\text{pump}, i}$) พร้อม Minimum Runtime Guard:**
    $$t_{\text{pump}, i}\ (\text{วินาที}) = \frac{V_{\text{demo}, i}\ (\text{ml})}{Q_{\text{pump}, i}\ (\text{ml/s})}$$
-   - **กติกาเดียวป้องกัน Pump Dead-Time:** ก่อนเริ่มสั่งงานต้องไล่น้ำเต็มสายยางทุกเส้น (Pre-priming) และหากปั๊มธาตุใดคำนวณเวลาได้ $0 < t_{\text{pump}, i} < 1.5\text{ s}$ ให้ **ตัดเป็น `0.0 s`** แล้วย้ายปริมาตรส่วนนั้นไปบวกในน้ำเปล่าเพื่อให้รวมยังเป็น $200\text{ ml}$ โดยเก็บ `pump_seconds` ปัดทศนิยม 2 ตำแหน่ง (`round(sec, 2)`) ลงฐานข้อมูล แล้วแปลงเป็นมิลลิวินาทีใน API ด้วย `int(round(pump_sec * 1000))`
+   - **กติกาเดียวป้องกัน Pump Dead-Time:** ก่อนเริ่มสั่งงานต้องไล่น้ำเต็มสายยางทุกเส้น (Pre-priming) และหากปั๊มธาตุใดคำนวณเวลาได้ $0 < t_{\text{pump}, i} < 1.5\text{ s}$ ให้ **ตัดเป็น `0.0 s`** แล้วย้ายปริมาตรส่วนนั้นไปบวกในน้ำเปล่าเพื่อให้รวมยังเป็น $1{,}000\text{ ml}$ โดยเก็บ `pump_seconds` ปัดทศนิยม 2 ตำแหน่ง (`round(sec, 2)`) ลงฐานข้อมูล แล้วแปลงเป็นมิลลิวินาทีใน API ด้วย `int(round(pump_sec * 1000))`
    > **ตัวอย่างคำนวณ:** ปั๊ม N มี $Q = 5.0\ \text{ml/s}$, ปริมาตร $V_{\text{demo, N}} = 68.83\text{ ml} \rightarrow t_{\text{pump, N}} = \text{round}(68.8326 / 5.0, 2) = 13.77\text{ s}$ (`13770 ms`) และปั๊ม P มี $V_{\text{demo, P}} = 11.17\text{ ml} \rightarrow t_{\text{pump, P}} = \text{round}(11.1674 / 5.0, 2) = 2.23\text{ s}$ (`2230 ms`)
 
 4. **ลูปตรวจเช็กความเค็มและเจือจาง TDS/EC กึ่งอัตโนมัติ (Salinity/Osmotic Burn Guard):**
@@ -205,7 +205,7 @@ $$\text{Green Coverage (\%)} = \frac{\text{จำนวนพิกเซลท�
    - ถ้า `mixer_tds_ppm` $\le$ `safe_ec_max_ppm` $\rightarrow$ สถานะ = `'ready'` (อนุญาตให้ตักขึ้นโดรนได้ และล้างหัววัดด้วยน้ำสะอาด)
    - ถ้า `mixer_tds_ppm` $>$ `safe_ec_max_ppm` $\rightarrow$ Flask คำนวณปริมาตรน้ำเปล่าเติมเพิ่มโดยคิดค่า TDS พื้นฐานของน้ำประปา ($\text{EC}_{\text{water}} \approx 150\ \text{ppm}$) และใช้ปริมาตรสะสมปัจจุบัน $V_{\text{current}} = V_{\text{N}} + V_{\text{P}} + V_{\text{K}} + V_{\text{water}}$:
      $$V_{\text{add\_water}} = V_{\text{current}} \times \frac{\text{EC}_{\text{current}} - \text{EC}_{\text{safe}}}{\text{EC}_{\text{safe}} - \text{EC}_{\text{water}}}$$
-     *(ตรวจเช็กความจุถัง: หาก $V_{\text{current}} + V_{\text{add\_water}} > 500\text{ ml}$ ให้หยุดและแจ้งเตือนผู้ใช้แบ่งน้ำปุ๋ยออกครึ่งหนึ่งก่อน)* มิฉะนั้นระบบจะตั้ง `status = 'diluting'`, บวก `vol_water_ml` สะสมเพิ่ม, รีเซ็ตเวลาปั๊ม N/P/K เป็น `0`, และใส่เวลาปั๊มน้ำเปล่า $t_{\text{add}} = V_{\text{add\_water}} / Q_{\text{pump, water}}$ ให้ ESP32 #2 ดึงไปเติมน้ำเจือจางแล้ววัดซ้ำ
+     *(ตรวจเช็กความจุถัง: หาก $V_{\text{current}} + V_{\text{add\_water}} > 2{,}000\text{ ml}$ ให้หยุดและแจ้งเตือนผู้ใช้แบ่งน้ำปุ๋ยออกครึ่งหนึ่งก่อน)* มิฉะนั้นระบบจะตั้ง `status = 'diluting'`, บวก `vol_water_ml` สะสมเพิ่ม, รีเซ็ตเวลาปั๊ม N/P/K เป็น `0`, และใส่เวลาปั๊มน้ำเปล่า $t_{\text{add}} = V_{\text{add\_water}} / Q_{\text{pump, water}}$ ให้ ESP32 #2 ดึงไปเติมน้ำเจือจางแล้ววัดซ้ำ
 
 ---
 

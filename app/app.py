@@ -653,10 +653,10 @@ def create_app(
                 water_ec_ppm=cfg.water_tds_ppm,
             )
 
-            # Tank overflow guard (500 ml mixing tank limit)
-            if result["needs_dilution"] and (current_vol + result["add_water_ml"] > 500.0):
+            # Tank overflow guard (aligned with mixing_tank_max_ml, e.g. 2,000 ml)
+            if result["needs_dilution"] and (current_vol + result["add_water_ml"] > cfg.mixing_tank_max_ml):
                 result["tank_overflow_warning"] = (
-                    f"ปริมาตรรวม ({current_vol + result['add_water_ml']:.0f} ml) เกินความจุถังผสม 500 ml "
+                    f"ปริมาตรรวม ({current_vol + result['add_water_ml']:.0f} ml) เกินความจุถังผสม {cfg.mixing_tank_max_ml:.0f} ml "
                     "กรุณาแบ่งน้ำปุ๋ยออกครึ่งหนึ่งก่อนเติมน้ำเจือจาง"
                 )
 

@@ -37,7 +37,7 @@ PUMP_GPIO_PINS: dict[str, int] = {
     "water": 23,
 }
 
-MAX_PUMP_DURATION_S = 120.0
+MAX_PUMP_DURATION_S = 360.0
 
 _pump_lock = threading.Lock()
 _pumps: dict[str, OutputDevice] = {}

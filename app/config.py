@@ -33,9 +33,10 @@ class AppConfig:
     table_height_cm: float = 60.0
     min_move_cm: float = 20.0
 
-    # Mixing batch & safety thresholds (0.5s guard matches perf_counter sub-ms Pi GPIO timing)
-    demo_batch_ml: float = 200.0
-    demo_bio_ml: float = 80.0
+    # Mixing batch & safety thresholds (aligned with Back/ 1,000 ml mixing batch & 2,000 ml tank limit)
+    demo_batch_ml: float = 1000.0
+    demo_bio_ml: float = 400.0
+    mixing_tank_max_ml: float = 2000.0
     min_pump_runtime_s: float = 0.5
     water_tds_ppm: float = 150.0
     exg_green_threshold: int = 20
