@@ -228,7 +228,69 @@ async function refreshBackendForActiveMode() {
     s.fermenter.provenance = mode === "sim" ? "SIMULATED" : "LIVE";
   }
 
+  await refreshSoilPointsUI();
   renderCurrentModeUI();
+}
+
+function speakThaiPrompt(text) {
+  if (!("speechSynthesis" in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "th-TH";
+    utter.rate = 1.0;
+    window.speechSynthesis.speak(utter);
+  } catch (_) {}
+}
+
+function renderSoilPointsGrid(summary) {
+  const grid = document.getElementById("soil-points-grid");
+  const countEl = document.getElementById("soil-points-count");
+  if (!grid || !countEl || !summary) return;
+  countEl.textContent = `${summary.recorded_count || 0} / 15 จุด`;
+  grid.innerHTML = "";
+  (summary.points || []).forEach((pt) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `soil-pt-btn${pt.n !== null ? " is-recorded" : ""}`;
+    btn.textContent = pt.n !== null ? `#${pt.point_index} ✓` : `#${pt.point_index}`;
+    btn.title = pt.n !== null ? `N:${pt.n} P:${pt.p} K:${pt.k} pH:${pt.ph ?? "-"}` : `กดเพื่อบันทึกจุดที่ ${pt.point_index}`;
+    btn.addEventListener("click", () => recordSoilPoint(pt.point_index));
+    grid.appendChild(btn);
+  });
+}
+
+async function refreshSoilPointsUI() {
+  const s = currentModeState();
+  const mode = appState.activeMode;
+  const summary = await apiRequest(`/api/soil/points/${s.plot.id || 1}?mode=${mode}`);
+  if (summary && !summary.__error) {
+    s.soilPoints = summary;
+    renderSoilPointsGrid(summary);
+  }
+}
+
+async function recordSoilPoint(pointIndex) {
+  const s = currentModeState();
+  const res = await apiRequest("/api/soil/points", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      plot_id: s.plot.id || 1,
+      mode: appState.activeMode,
+      point_index: pointIndex,
+      action: "record",
+    }),
+  });
+  if (res && !res.__error) {
+    s.soilPoints = res;
+    renderSoilPointsGrid(res);
+    if (pointIndex < 15) {
+      speakThaiPrompt(`บันทึกจุดที่ ${pointIndex} แล้ว กรุณาจิ้มจุดที่ ${pointIndex + 1}`);
+    } else {
+      speakThaiPrompt("บันทึกครบ 15 จุดแล้วครับ");
+    }
+  }
 }
 
 function renderCurrentModeUI() {
@@ -827,6 +889,26 @@ function bindWorkspace3() {
   });
 
   document.getElementById("btn-refresh-soil").addEventListener("click", refreshBackendForActiveMode);
+
+  document.getElementById("btn-record-next-point").addEventListener("click", async () => {
+    const s = currentModeState();
+    const points = s.soilPoints?.points || [];
+    const nextPt = points.find((p) => p.n === null)?.point_index || 1;
+    await recordSoilPoint(nextPt);
+  });
+
+  document.getElementById("btn-clear-soil-points").addEventListener("click", async () => {
+    const s = currentModeState();
+    const res = await apiRequest("/api/soil/points", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plot_id: s.plot.id || 1, mode: appState.activeMode, action: "clear_all" }),
+    });
+    if (res && !res.__error) {
+      s.soilPoints = res;
+      renderSoilPointsGrid(res);
+    }
+  });
 
   document.getElementById("btn-sim-soil").addEventListener("click", async () => {
     const s = currentModeState();

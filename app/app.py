@@ -316,6 +316,118 @@ def create_app(
             }
         )
 
+    def _get_15_points_summary(conn: Any, plot_id: int, mode: str) -> dict[str, Any]:
+        rows = conn.execute(
+            """
+            SELECT point_index, nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg, ph_value, recorded_at
+            FROM soil_readings
+            WHERE plot_id = ? AND mode = ? AND point_index BETWEEN 1 AND 15
+            ORDER BY id ASC
+            """,
+            (plot_id, mode),
+        ).fetchall()
+        slot_map: dict[int, dict[str, Any]] = {}
+        for r in rows:
+            idx = int(r["point_index"])
+            slot_map[idx] = {
+                "point_index": idx,
+                "n": r["nitrogen_mg_kg"],
+                "p": r["phosphorus_mg_kg"],
+                "k": r["potassium_mg_kg"],
+                "ph": r["ph_value"],
+                "recorded_at": r["recorded_at"],
+            }
+        points = [
+            slot_map.get(
+                idx,
+                {"point_index": idx, "n": None, "p": None, "k": None, "ph": None, "recorded_at": None},
+            )
+            for idx in range(1, 16)
+        ]
+        recorded = [p for p in points if p["n"] is not None]
+        avg = None
+        if recorded:
+            ph_vals = [float(p["ph"]) for p in recorded if p["ph"] is not None]
+            avg = {
+                "n": round(sum(float(p["n"]) for p in recorded) / len(recorded), 2),
+                "p": round(sum(float(p["p"]) for p in recorded) / len(recorded), 2),
+                "k": round(sum(float(p["k"]) for p in recorded) / len(recorded), 2),
+                "ph": round(sum(ph_vals) / len(ph_vals), 2) if ph_vals else None,
+            }
+        return {"mode": mode, "plot_id": plot_id, "recorded_count": len(recorded), "points": points, "average": avg}
+
+    @flask_app.get("/api/soil/points/<int:plot_id>")
+    def get_soil_points(plot_id: int) -> Any:
+        mode = _normalize_mode(request.args.get("mode", "live"))
+        with get_connection(db_path) as conn:
+            return jsonify(_get_15_points_summary(conn, plot_id, mode))
+
+    @flask_app.post("/api/soil/points")
+    def manage_soil_points() -> Any:
+        data = request.get_json(silent=True) or {}
+        plot_id = int(data.get("plot_id") or 1)
+        mode = _normalize_mode(data.get("mode"), data.get("simulated"))
+        action = str(data.get("action") or "record").lower()
+
+        with get_connection(db_path) as conn:
+            if action == "clear_all":
+                conn.execute(
+                    "DELETE FROM soil_readings WHERE plot_id = ? AND mode = ? AND point_index BETWEEN 1 AND 15",
+                    (plot_id, mode),
+                )
+                conn.commit()
+                return jsonify({"ok": True, **_get_15_points_summary(conn, plot_id, mode)})
+
+            point_index = int(data.get("point_index") or 0)
+            if not (1 <= point_index <= 15):
+                return jsonify({"error": "point_index must be between 1 and 15"}), 400
+
+            if action == "clear":
+                conn.execute(
+                    "DELETE FROM soil_readings WHERE plot_id = ? AND mode = ? AND point_index = ?",
+                    (plot_id, mode, point_index),
+                )
+                conn.commit()
+                return jsonify({"ok": True, **_get_15_points_summary(conn, plot_id, mode)})
+
+            n_val = data.get("n")
+            p_val = data.get("p")
+            k_val = data.get("k")
+            ph_val = data.get("ph")
+            if n_val is None or p_val is None or k_val is None:
+                latest = conn.execute(
+                    """
+                    SELECT nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg, ph_value
+                    FROM soil_readings
+                    WHERE plot_id = ? AND mode = ? AND nitrogen_mg_kg IS NOT NULL
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (plot_id, mode),
+                ).fetchone()
+                if not latest:
+                    return jsonify({"error": "ยังไม่มีค่าดินล่าสุดสำหรับบันทึกในจุดที่เลือก"}), 400
+                n_val = latest["nitrogen_mg_kg"]
+                p_val = latest["phosphorus_mg_kg"]
+                k_val = latest["potassium_mg_kg"]
+                if ph_val is None:
+                    ph_val = latest["ph_value"]
+
+            conn.execute(
+                "DELETE FROM soil_readings WHERE plot_id = ? AND mode = ? AND point_index = ?",
+                (plot_id, mode, point_index),
+            )
+            conn.execute(
+                """
+                INSERT INTO soil_readings (
+                    plot_id, nitrogen_mg_kg, phosphorus_mg_kg, potassium_mg_kg,
+                    ph_value, source, mode, point_index
+                ) VALUES (?, ?, ?, ?, ?, 'point_15', ?, ?)
+                """,
+                (plot_id, n_val, p_val, k_val, ph_val, mode, point_index),
+            )
+            conn.commit()
+            return jsonify({"ok": True, **_get_15_points_summary(conn, plot_id, mode)})
+
     @flask_app.get("/api/soil/latest/<int:plot_id>")
     def get_latest_soil(plot_id: int) -> Any:
         mode = _normalize_mode(request.args.get("mode", "live"))
@@ -404,34 +516,51 @@ def create_app(
             if not profile:
                 return jsonify({"error": "Crop profile not found"}), 404
 
-            # Strictly read soil readings from the SAME mode only
-            soil_row = conn.execute(
-                """
-                SELECT * FROM soil_readings
-                WHERE plot_id = ? AND mode = ? AND nitrogen_mg_kg IS NOT NULL
-                ORDER BY id DESC LIMIT 1
-                """,
-                (plot_id, mode),
-            ).fetchone()
+            # Prefer 15-point averaged readings if recorded; otherwise fall back to latest reading
+            points_summary = _get_15_points_summary(conn, plot_id, mode)
+            if points_summary["average"] is not None:
+                avg = points_summary["average"]
+                n_mg = float(avg["n"])
+                p_mg = float(avg["p"])
+                k_mg = float(avg["k"])
+                ph_val = float(avg["ph"]) if avg["ph"] is not None else None
+                latest_moist = conn.execute(
+                    """
+                    SELECT moisture_pct FROM soil_readings
+                    WHERE plot_id = ? AND mode = ? AND moisture_pct IS NOT NULL
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (plot_id, mode),
+                ).fetchone()
+                moist_val = float(latest_moist["moisture_pct"]) if latest_moist else None
+            else:
+                soil_row = conn.execute(
+                    """
+                    SELECT * FROM soil_readings
+                    WHERE plot_id = ? AND mode = ? AND nitrogen_mg_kg IS NOT NULL
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (plot_id, mode),
+                ).fetchone()
 
-            if not soil_row:
-                return (
-                    jsonify(
-                        {
-                            "error": (
-                                f"ยังไม่มีผลตรวจค่า N, P, K ในโหมด {mode.upper()} "
-                                "กรุณากรอกค่าชุดตรวจดิน LDD ก่อนคำนวณสูตร"
-                            )
-                        }
-                    ),
-                    400,
-                )
+                if not soil_row:
+                    return (
+                        jsonify(
+                            {
+                                "error": (
+                                    f"ยังไม่มีผลตรวจค่า N, P, K ในโหมด {mode.upper()} "
+                                    "กรุณาวัดค่าดินหรือบันทึกจุดตรวจดินก่อนคำนวณสูตร"
+                                )
+                            }
+                        ),
+                        400,
+                    )
 
-            n_mg = float(soil_row["nitrogen_mg_kg"])
-            p_mg = float(soil_row["phosphorus_mg_kg"])
-            k_mg = float(soil_row["potassium_mg_kg"])
-            ph_val = float(soil_row["ph_value"]) if soil_row["ph_value"] is not None else None
-            moist_val = float(soil_row["moisture_pct"]) if soil_row["moisture_pct"] is not None else None
+                n_mg = float(soil_row["nitrogen_mg_kg"])
+                p_mg = float(soil_row["phosphorus_mg_kg"])
+                k_mg = float(soil_row["potassium_mg_kg"])
+                ph_val = float(soil_row["ph_value"]) if soil_row["ph_value"] is not None else None
+                moist_val = float(soil_row["moisture_pct"]) if soil_row["moisture_pct"] is not None else None
             exg_val = float(data["exg_green_pct"]) if data.get("exg_green_pct") is not None else None
 
             deficit_res = calculate_nutrient_deficit(

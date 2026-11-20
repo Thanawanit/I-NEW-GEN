@@ -99,6 +99,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 ec_us_cm REAL,
                 source TEXT NOT NULL,
                 mode TEXT NOT NULL DEFAULT 'live',
+                point_index INTEGER,
                 recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -141,6 +142,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
         for table_name in ("plots", "soil_readings", "fermenter_logs", "mixing_jobs"):
             _ensure_column(conn, table_name, "mode", "TEXT NOT NULL DEFAULT 'live'")
         _ensure_column(conn, "fermenter_logs", "temp_mixer_c", "REAL")
+        _ensure_column(conn, "soil_readings", "point_index", "INTEGER")
 
         # Upsert by id so an existing DB file picks up the current crop table without breaking plot FKs.
         conn.executemany(

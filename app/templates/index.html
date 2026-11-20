@@ -424,6 +424,22 @@
                 </button>
               </div>
 
+              <div class="soil-points-wrap">
+                <div class="soil-points-head">
+                  <span>บันทึกค่าดินรายจุด (1–15 จุด • รองรับเสียงแนะนำ)</span>
+                  <strong id="soil-points-count" class="tabular-num">0 / 15 จุด</strong>
+                </div>
+                <div id="soil-points-grid" class="soil-points-grid"></div>
+                <div class="action-strip" style="margin-top: 8px;">
+                  <button id="btn-record-next-point" type="button" class="btn btn-secondary btn-sm">
+                    บันทึกค่าล่าสุดลงจุดถัดไป
+                  </button>
+                  <button id="btn-clear-soil-points" type="button" class="btn btn-ghost btn-sm">
+                    ล้าง 15 จุด
+                  </button>
+                </div>
+              </div>
+
               <form id="form-manual-soil" class="form-grid-4">
                 <div class="form-group">
                   <label for="manual-n">ไนโตรเจน (N)</label>

@@ -1163,3 +1163,44 @@ select:disabled {
     padding: 12px 16px;
   }
 }
+
+.soil-points-wrap {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.soil-points-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+.soil-points-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.soil-pt-btn {
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.soil-pt-btn.is-recorded {
+  background: var(--live-bg);
+  border-color: var(--live-bd);
+  color: var(--live-fg);
+  font-weight: 600;
+}

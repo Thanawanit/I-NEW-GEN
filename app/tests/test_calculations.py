@@ -461,6 +461,35 @@ class TestFlaskAPI(unittest.TestCase):
         self.assertEqual(hw_mixer["soil_receiver"]["last_source"], "lora_ra02")
         self.assertEqual(get_soil_receiver_status()["lora_snr"], 8.0)
 
+        # 7. 15-point soil recording & averaging in /api/mixer/calculate
+        pt1 = self.client.post(
+            "/api/soil/points",
+            json={"plot_id": plot_id, "mode": "live", "point_index": 1, "n": 10, "p": 8, "k": 20, "ph": 6.0},
+        ).get_json()
+        pt15 = self.client.post(
+            "/api/soil/points",
+            json={"plot_id": plot_id, "mode": "live", "point_index": 15, "n": 20, "p": 12, "k": 40, "ph": 6.4},
+        ).get_json()
+        self.assertEqual(pt1["recorded_count"], 1)
+        self.assertEqual(pt15["recorded_count"], 2)
+        self.assertEqual(len(pt15["points"]), 15)
+        self.assertAlmostEqual(pt15["average"]["n"], 15.0)
+        self.assertAlmostEqual(pt15["average"]["ph"], 6.2)
+
+        crops = self.client.get("/api/crops").get_json()["crops"]
+        calc_15 = self.client.post(
+            "/api/mixer/calculate",
+            json={"plot_id": plot_id, "mode": "live", "crop_profile_id": crops[0]["id"], "confirmed_area_m2": 100.0, "soil_type": "loam"},
+        )
+        self.assertEqual(calc_15.status_code, 200)
+
+        cleared = self.client.post(
+            "/api/soil/points",
+            json={"plot_id": plot_id, "mode": "live", "action": "clear_all"},
+        ).get_json()
+        self.assertEqual(cleared["recorded_count"], 0)
+        self.assertIsNone(cleared["average"])
+
 
 if __name__ == "__main__":
     unittest.main()
