@@ -1,6 +1,5 @@
 /* ==========================================================================
    Smart Bio-Fert Drone — Focused Light Editorial Workspace
-   Clean single-stage progression, real-time animated bottle & sensor cards
    ========================================================================== */
 
 :root {
@@ -40,7 +39,7 @@
   --danger-fg: #992521;
   --danger-bd: #efc3c0;
 
-  /* N / P / K Tank Colors (aligned with physical machine labels) */
+  /* N / P / K Tank Colors */
   --tank-n: #1e8e4e;
   --tank-n-bg: #e7f6ed;
   --tank-p: #d98218;
@@ -116,12 +115,12 @@ body {
 .topbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .brand-mark {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent);
@@ -132,24 +131,12 @@ body {
   flex-shrink: 0;
 }
 
-.brand-copy {
-  display: flex;
-  flex-direction: column;
-}
-
 .brand-title {
   font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.25;
 }
 
-.brand-subtitle {
-  font-size: 12.5px;
-  color: var(--text-muted);
-}
-
-/* Step Dots Indicator */
 .step-dots {
   display: flex;
   align-items: center;
@@ -245,6 +232,11 @@ body {
   border: 1px solid transparent;
 }
 
+.badge-lg {
+  font-size: 15px;
+  padding: 4px 12px;
+}
+
 .badge-simulated {
   background: #ffffff;
   color: var(--sim-fg);
@@ -261,6 +253,23 @@ body {
   background: var(--calc-bg);
   color: var(--calc-fg);
   border-color: var(--calc-bd);
+}
+
+/* Prominent Top Stage Status Box */
+.stage-status-box {
+  align-self: center;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  padding: 12px 28px;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(26, 36, 29, 0.05);
+}
+
+.stage-status-box strong {
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--accent);
 }
 
 /* ==================== BUTTONS ==================== */
@@ -288,6 +297,13 @@ body {
 .btn-sm {
   padding: 6px 12px;
   font-size: 12.5px;
+}
+
+.btn-tool-lg {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  justify-content: flex-start;
 }
 
 .btn-lg {
@@ -345,6 +361,22 @@ body {
   border-color: var(--danger-bd);
 }
 
+.btn-emergency-red {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #b91c1c;
+}
+
+.btn-emergency-red:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.btn-emergency-red[data-armed="true"] {
+  background: #7f1d1d;
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.28);
+}
+
 .btn-icon-pill {
   background: var(--bg-subtle);
   color: var(--text-primary);
@@ -374,9 +406,10 @@ body {
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 24px 20px 40px;
+  padding: 20px 20px 44px;
   display: flex;
   flex-direction: column;
+  gap: 18px;
 }
 
 .stage-card {
@@ -399,7 +432,7 @@ body {
 
 .clean-center-box {
   width: 100%;
-  max-width: 500px;
+  max-width: 520px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -439,12 +472,12 @@ body {
   border-color: var(--accent);
 }
 
-/* ==================== STAGE 1: SATELLITE MAP & POLYGON TOOLS ==================== */
+/* ==================== STAGE 1: SATELLITE MAP & VERTICAL LEFT DOCK ==================== */
 
 .map-frame {
   position: relative;
   width: 100%;
-  height: 500px;
+  height: 520px;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: 1px solid var(--border-strong);
@@ -456,7 +489,6 @@ body {
   height: 100%;
 }
 
-/* Hide unused Leaflet Draw default toolbar buttons cleanly; controlled via our Dock */
 .leaflet-draw-toolbar {
   display: none !important;
 }
@@ -464,18 +496,18 @@ body {
 .map-tool-dock {
   position: absolute;
   top: 14px;
-  right: 14px;
+  left: 14px;
   z-index: 600;
-  max-width: 360px;
+  width: 230px;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(8px);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  box-shadow: 0 8px 24px rgba(26, 36, 29, 0.14);
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(26, 36, 29, 0.16);
 }
 
 .tool-dock-head {
@@ -485,8 +517,8 @@ body {
 }
 
 .tool-big-icon {
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--accent);
@@ -499,7 +531,7 @@ body {
 
 .tool-title {
   display: block;
-  font-size: 14px;
+  font-size: 14.5px;
   color: var(--text-primary);
 }
 
@@ -510,10 +542,10 @@ body {
   line-height: 1.35;
 }
 
-.tool-btn-row {
+.tool-btn-col {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .area-footer-bar {
@@ -531,31 +563,59 @@ body {
 .area-display-card {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .area-label {
   font-size: 13px;
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 
-.area-input-row {
-  display: flex;
-  align-items: baseline;
+/* Editable Pill without helper text or spinner arrows */
+.area-input-pill {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
+  background: var(--bg-subtle);
+  border: 1.5px solid var(--border-strong);
+  border-bottom: 2.5px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  cursor: text;
+}
+
+.area-input-pill:focus-within {
+  background: #ffffff;
+  border-color: var(--accent);
 }
 
 .area-hero-number {
-  width: 190px;
+  width: 165px;
   font-family: inherit;
   font-size: 32px;
   font-weight: 700;
   color: var(--accent);
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  padding: 4px 10px;
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+}
+
+/* Remove number spinner arrows cleanly */
+.no-spinner {
+  -moz-appearance: textfield;
+}
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.area-edit-icon {
+  color: var(--accent);
+  opacity: 0.75;
+  flex-shrink: 0;
 }
 
 .area-unit {
@@ -595,7 +655,7 @@ body {
   width: 100%;
   padding: 11px 12px;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 14.5px;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--border-strong);
   background: var(--bg-surface);
@@ -617,7 +677,7 @@ body {
   justify-content: center;
 }
 
-/* ==================== STAGE 3: DRONE SURVEY BEFORE/AFTER ==================== */
+/* ==================== STAGE 3: DRONE SURVEY BEFORE / AFTER ==================== */
 
 .survey-stage-box {
   width: 100%;
@@ -626,6 +686,32 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 20px;
+}
+
+.survey-launch-spaced {
+  gap: 32px;
+  padding: 48px 32px;
+  max-width: 600px;
+}
+
+.survey-big-heading {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.survey-result-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.survey-result-title-bar h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
 }
 
 .live-status-pill {
@@ -683,11 +769,9 @@ body {
 }
 
 .compare-card figcaption {
-  font-size: 14px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .compare-img-box {
@@ -752,7 +836,6 @@ body {
   gap: 12px;
 }
 
-/* Styled Native <progress> following modern-web-guidance */
 progress#probe-progress-bar {
   appearance: none;
   border: 0 solid;
@@ -786,7 +869,6 @@ progress#probe-progress-bar::-moz-progress-bar {
   gap: 14px;
 }
 
-/* Creative 5-Prong Soil Sensor Silhouette Card */
 .sensor-probe-card {
   display: flex;
   flex-direction: column;
@@ -843,32 +925,47 @@ progress#probe-progress-bar::-moz-progress-bar {
   border-radius: 0 0 3px 3px;
 }
 
-/* ==================== STAGE 5: DUAL NPK TANKS & BOTTLE ANIMATION ==================== */
+/* ==================== STAGE 5: DUAL NPK TANKS & GRADUATED BEAKER SVG ==================== */
 
 .calc-comparison-wrap {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .deficit-banner {
   background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
+  border-left: 5px solid var(--accent);
   border-radius: var(--radius-md);
-  padding: 14px 18px;
+  padding: 18px 22px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 10px;
 }
 
 .deficit-banner strong {
-  font-size: 16px;
+  font-size: 21px;
+  color: var(--text-primary);
 }
 
 .deficit-banner span {
-  font-size: 13px;
+  font-size: 13.5px;
   color: var(--text-secondary);
+}
+
+.thin-divider {
+  border: 0;
+  border-top: 1px solid var(--border-strong);
+  margin: 6px 0 10px;
+  width: 100%;
+}
+
+.thick-divider {
+  border: 0;
+  border-top: 3px solid var(--border-strong);
+  margin: 34px 0 24px;
+  width: 100%;
 }
 
 .dual-tank-arena {
@@ -960,30 +1057,55 @@ progress#probe-progress-bar::-moz-progress-bar {
   color: var(--text-muted);
 }
 
-/* Convergence Zone */
 .convergence-zone {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: -12px;
+  gap: 8px;
 }
 
 .convergence-svg {
   width: 100%;
   max-width: 620px;
-  height: 54px;
+  height: 76px;
 }
 
 .convergence-summary-pill {
   background: var(--bg-surface);
   border: 1.5px solid var(--accent-border);
   border-radius: var(--radius-md);
-  padding: 12px 24px;
+  padding: 18px 34px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.conv-row-primary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.conv-row-primary span {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.conv-row-primary strong {
+  font-size: 28px;
+  color: var(--accent);
+}
+
+.conv-row-secondary {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 20px;
+  gap: 24px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 
 .conv-metric {
@@ -995,7 +1117,7 @@ progress#probe-progress-bar::-moz-progress-bar {
 }
 
 .conv-metric strong {
-  font-size: 17px;
+  font-size: 16.5px;
   color: var(--text-primary);
 }
 
@@ -1008,10 +1130,9 @@ progress#probe-progress-bar::-moz-progress-bar {
 .dispense-cta-zone {
   display: flex;
   justify-content: center;
-  padding: 10px 0 4px;
+  padding: 4px 0 8px;
 }
 
-/* Expanding Live Dispensing Section */
 .dispense-live-section {
   margin-top: 12px;
   padding-top: 24px;
@@ -1024,8 +1145,8 @@ progress#probe-progress-bar::-moz-progress-bar {
   border-radius: var(--radius-lg);
   padding: 28px;
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  gap: 24px;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 28px;
   align-items: center;
 }
 
@@ -1052,9 +1173,10 @@ progress#probe-progress-bar::-moz-progress-bar {
   line-height: 1;
 }
 
-.channel-breakdown {
+/* Vertical N / P / K / Water breakdown + Vertical action buttons */
+.channel-breakdown-col {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
 }
 
@@ -1062,101 +1184,41 @@ progress#probe-progress-bar::-moz-progress-bar {
   background: var(--bg-subtle);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 6px 12px;
-  font-size: 13px;
-}
-
-.dispense-actions {
+  padding: 8px 14px;
+  font-size: 13.5px;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
 }
 
-/* Real-time Water Bottle Animation (Compositor-only scaleY) */
+.dispense-actions-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .bottle-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.bottle-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.bottle-neck {
-  width: 44px;
-  height: 16px;
-  border: 2.5px solid var(--text-primary);
-  border-bottom: 0;
-  border-radius: 6px 6px 0 0;
-  background: var(--bg-subtle);
-}
-
-.bottle-body {
-  position: relative;
-  width: 140px;
-  height: 220px;
-  border: 3px solid var(--text-primary);
-  border-radius: 18px 18px 14px 14px;
-  background: #f9fbf9;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.bottle-water-fill {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, #3fb975 0%, #1e6b3a 100%);
-  transform-origin: bottom center;
-  transform: scaleY(0);
-  transition: transform 0.25s linear;
-  opacity: 0.85;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bottle-water-fill {
-    transition: none;
-  }
-}
-
-.bottle-ticks {
-  position: absolute;
-  inset: 10px 8px 10px auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  font-size: 10px;
-  color: var(--text-muted);
-  z-index: 2;
-}
-
-.bottle-center-readout {
-  position: relative;
-  z-index: 3;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 5px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  font-size: 14px;
-  color: var(--text-primary);
+.beaker-svg {
+  width: 240px;
+  height: auto;
 }
 
 .bottle-pct-caption {
-  font-size: 16px;
+  font-size: 18px;
   color: var(--accent);
 }
 
-/* ==================== STAGE 6: FINAL DRONE REFILL & SPRAY ==================== */
+/* ==================== STAGE 6: ANIMATED DRONE SVG & COMPLETE SUMMARY ==================== */
 
 .drone-final-box {
   width: 100%;
-  max-width: 680px;
+  max-width: 760px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1181,8 +1243,21 @@ progress#probe-progress-bar::-moz-progress-bar {
 
 .dock-svg {
   width: 100%;
-  max-width: 420px;
+  max-width: 460px;
   height: auto;
+}
+
+.svg-drone-group {
+  transition: transform 1.2s ease-in-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dock-concept-card.phase-fly .svg-drone-group {
+    transform: translate(172px, -22px);
+  }
+  .dock-concept-card.phase-land .svg-drone-group {
+    transform: translate(172px, 6px);
+  }
 }
 
 .dock-caption {
@@ -1190,6 +1265,56 @@ progress#probe-progress-bar::-moz-progress-bar {
   font-size: 12.5px;
   color: var(--text-secondary);
   text-align: center;
+}
+
+.final-complete-summary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding-top: 8px;
+}
+
+.complete-banner {
+  width: 100%;
+  background: var(--live-bg);
+  color: var(--live-fg);
+  border: 2px solid var(--live-bd);
+  border-radius: var(--radius-md);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 21px;
+}
+
+.summary-cards-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sum-card {
+  background: var(--bg-canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sum-k {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sum-card strong {
+  font-size: 14px;
+  color: var(--text-primary);
 }
 
 /* ==================== NATIVE <dialog> INFO & SETTINGS MODAL ==================== */
@@ -1205,7 +1330,6 @@ dialog.info-dialog {
   box-shadow: 0 20px 50px rgba(26, 36, 29, 0.22);
 }
 
-/* Mandatory overscroll-behavior per modern-web-guidance dialog guide */
 dialog.info-dialog:modal {
   overscroll-behavior: contain;
 }
@@ -1295,12 +1419,13 @@ dialog.info-dialog::backdrop {
   }
   .dual-tank-arena,
   .compare-grid,
-  .dispense-panel {
+  .dispense-panel,
+  .summary-cards-grid {
     grid-template-columns: 1fr;
   }
   .map-tool-dock {
     position: static;
-    max-width: 100%;
+    width: auto;
     margin: 10px;
   }
   .map-frame {

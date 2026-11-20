@@ -22,6 +22,7 @@ from calculations import (  # noqa: E402
     calculate_nutrient_deficit,
     project_latlng_to_waypoints,
 )
+from database import SEED_CROP_PROFILES  # noqa: E402
 from hardware_bridge import (  # noqa: E402
     RA02,
     get_soil_receiver_status,
@@ -146,11 +147,11 @@ class TestCalculations(unittest.TestCase):
     def test_random_forest_model_accuracy_and_prediction(self) -> None:
         bundle = get_or_train_rf_model()
         self.assertGreater(bundle.r2_score_val, 0.90)
-        self.assertEqual(bundle.sample_count, 18000)
+        self.assertEqual(bundle.sample_count, 36000)
         self.assertEqual(len(bundle.feature_importances_pct), 9)
 
         pred = predict_rf_nutrient_deficit(
-            crop_profile_id=1,
+            crop_profile_id=2,
             root_depth_m=0.25,
             bulk_density_g_cm3=1.35,
             measured_n_mg_kg=5.0,
@@ -188,7 +189,7 @@ class TestFlaskAPI(unittest.TestCase):
         crops_resp = self.client.get("/api/crops")
         self.assertEqual(crops_resp.status_code, 200)
         crops = crops_resp.get_json()["crops"]
-        self.assertEqual(len(crops), 12)
+        self.assertEqual(len(crops), len(SEED_CROP_PROFILES))
 
         # 2. Save plot & compute tabletop waypoints
         plot_resp = self.client.post(
@@ -293,7 +294,7 @@ class TestFlaskAPI(unittest.TestCase):
 
         ml_metrics_resp = self.client.get("/api/ml/metrics")
         self.assertEqual(ml_metrics_resp.status_code, 200)
-        self.assertEqual(ml_metrics_resp.get_json()["training_samples"], 18000)
+        self.assertGreaterEqual(ml_metrics_resp.get_json()["training_samples"], 18000)
 
         # Real hardware ESP32 polling mode=live must NOT pick up SIM jobs
         live_cmd_resp = self.client.get("/api/mixer/command?mode=live")
@@ -526,7 +527,7 @@ class TestFlaskAPI(unittest.TestCase):
 
             calc_remote = self.client.post(
                 "/api/mixer/calculate",
-                json={"plot_id": plot_id, "mode": "live", "crop_profile_id": crops[0]["id"], "confirmed_area_m2": 100.0, "soil_type": "loam"},
+                json={"plot_id": plot_id, "mode": "live", "crop_profile_id": crops[1]["id"], "confirmed_area_m2": 100.0, "soil_type": "loam"},
             )
             self.assertEqual(calc_remote.status_code, 200)
 

@@ -35,16 +35,13 @@
             <path d="M12 13C12 9 8 6 3 6c0 4 4 7 9 7Z" />
           </svg>
         </div>
-        <div class="brand-copy">
-          <strong class="brand-title">Smart Bio-Fert Drone</strong>
-          <span id="stage-subtitle" class="brand-subtitle">ขั้นที่ 1 จาก 7 • ตั้งชื่อแปลงที่ดิน</span>
-        </div>
+        <strong class="brand-title">Smart Bio-Fert Drone</strong>
       </div>
 
       <!-- Step Dots Indicator -->
       <nav id="step-dots" class="step-dots" aria-label="ตัวบอกขั้นตอนปัจจุบัน">
         <button type="button" class="dot-btn is-active" data-stage="0" title="ตั้งชื่อแปลง" aria-label="ขั้นที่ 1 ตั้งชื่อแปลง"></button>
-        <button type="button" class="dot-btn" data-stage="1" title="วาดขอบเขตแปลง" aria-label="ขั้นที่ 2 วาดขอบเขตแปลง"></button>
+        <button type="button" class="dot-btn" data-stage="1" title="กำหนดแผนที่และขนาด" aria-label="ขั้นที่ 2 กำหนดแผนที่และขนาด"></button>
         <button type="button" class="dot-btn" data-stage="2" title="เลือกพืชและชนิดดิน" aria-label="ขั้นที่ 3 เลือกพืชและดิน"></button>
         <button type="button" class="dot-btn" data-stage="3" title="โดรนสำรวจความเขียว" aria-label="ขั้นที่ 4 โดรนสำรวจความเขียว"></button>
         <button type="button" class="dot-btn" data-stage="4" title="ตรวจวัดค่าดิน" aria-label="ขั้นที่ 5 ตรวจวัดค่าดิน"></button>
@@ -87,6 +84,10 @@
 
     <!-- ==================== SINGLE-STAGE FOCUSED WORKSPACE ==================== -->
     <main class="stage-viewport">
+      <!-- Prominent Large Stage Header Box (moved from small topbar text) -->
+      <div class="stage-status-box">
+        <strong id="stage-subtitle">ขั้นที่ 1 (ตั้งชื่อแปลงที่ดิน)</strong>
+      </div>
 
       <!-- STAGE 0: LANDING — PLOT NAME ONLY -->
       <section class="stage-card stage-centered" data-stage="0">
@@ -109,13 +110,13 @@
         </div>
       </section>
 
-      <!-- STAGE 1: SATELLITE MAP (POLYGON ONLY + FLOATING TOOLS + EDITABLE AREA) -->
+      <!-- STAGE 1: SATELLITE MAP (POLYGON ONLY + VERTICAL LEFT DOCK + EDITABLE AREA) -->
       <section class="stage-card hidden" data-stage="1">
         <div class="map-frame">
           <div id="map" class="map-canvas"></div>
 
-          <!-- Floating Easy Tool Dock Inside Map Corner -->
-          <div class="map-tool-dock" role="toolbar" aria-label="เครื่องมือวาดแปลงหลายเหลี่ยม">
+          <!-- Vertical Left Tool Dock Inside Map -->
+          <div class="map-tool-dock" role="toolbar" aria-label="กำหนดขอบเขตแปลง">
             <div class="tool-dock-head">
               <div class="tool-big-icon" aria-hidden="true">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -123,47 +124,52 @@
                 </svg>
               </div>
               <div>
-                <strong class="tool-title">วาดแปลงหลายเหลี่ยม</strong>
-                <p id="map-tool-hint" class="tool-hint">กดปุ่มวาดแล้วจิ้มมุมแปลง หรือลากจุดเพื่อย้ายตำแหน่งได้เลย</p>
+                <strong class="tool-title">กำหนดขอบเขตแปลง</strong>
+                <p id="map-tool-hint" class="tool-hint">จิ้มวางจุดรอบแปลง หรือลากจุดเพื่อย้าย</p>
               </div>
             </div>
 
-            <div class="tool-btn-row">
-              <button id="btn-map-draw" type="button" class="btn btn-primary btn-sm">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-                เริ่มวาด
+            <div class="tool-btn-col">
+              <button id="btn-map-draw" type="button" class="btn btn-primary btn-tool-lg">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+                เริ่มวาดขอบเขต
               </button>
-              <button id="btn-map-undo" type="button" class="btn btn-secondary btn-sm" title="ย้อนกลับ" disabled>
+              <button id="btn-map-undo" type="button" class="btn btn-secondary btn-tool-lg" title="ย้อนกลับ" disabled>
                 ↩ ย้อนกลับ
               </button>
-              <button id="btn-map-redo" type="button" class="btn btn-secondary btn-sm" title="ย้อนหน้า" disabled>
+              <button id="btn-map-redo" type="button" class="btn btn-secondary btn-tool-lg" title="ย้อนหน้า" disabled>
                 ↪ ย้อนหน้า
               </button>
-              <button id="btn-map-reset" type="button" class="btn btn-ghost btn-sm" title="รีเซ็ตทั้งหมด">
-                รีเซ็ต
+              <button id="btn-map-reset" type="button" class="btn btn-ghost btn-tool-lg" title="รีเซ็ตทั้งหมด">
+                รีเซ็ตทั้งหมด
               </button>
-              <button id="btn-map-apply" type="button" class="btn btn-apply btn-sm" title="Apply ขอบเขต">
-                ✔ Apply
+              <button id="btn-map-apply" type="button" class="btn btn-apply btn-tool-lg" title="บันทึกขอบเขต">
+                ✔ บันทึก
               </button>
             </div>
           </div>
         </div>
 
-        <!-- Big Prominent Editable Area Below Map -->
+        <!-- Big Prominent Editable Area Below Map (No spinner arrows, natural edit affordance) -->
         <div class="area-footer-bar">
           <div class="area-display-card">
-            <label for="input-confirmed-area" class="area-label">ขนาดพื้นที่แปลงที่วัดได้ (กดแก้ตัวเลขได้)</label>
-            <div class="area-input-row">
+            <span class="area-label">ขนาดพื้นที่แปลง</span>
+            <label for="input-confirmed-area" class="area-input-pill">
               <input
                 id="input-confirmed-area"
                 type="number"
                 min="1"
                 step="0.1"
                 placeholder="0.0"
-                class="area-hero-number tabular-num"
+                class="area-hero-number no-spinner tabular-num"
+                aria-label="ขนาดพื้นที่แปลง (ตารางเมตร)"
               />
+              <svg class="area-edit-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
               <span class="area-unit">ตร.ม.</span>
-            </div>
+            </label>
             <span id="area-thai-sub" class="area-thai-sub tabular-num">กรุณาวาดขอบเขตแปลงบนแผนที่ด้านบน</span>
           </div>
 
@@ -173,7 +179,7 @@
         </div>
       </section>
 
-      <!-- STAGE 2: SEQUENTIAL CASCADING DROPDOWNS (CROP -> VARIETY -> STAGE -> SOIL) -->
+      <!-- STAGE 2: SEQUENTIAL CASCADING DROPDOWNS (CROP -> VARIETY -> STAGE -> MAE HONG SON SOIL) -->
       <section class="stage-card stage-centered hidden" data-stage="2">
         <div class="clean-center-box">
           <h2 class="stage-heading">เลือกข้อมูลพืชและชนิดดิน</h2>
@@ -200,12 +206,14 @@
             </div>
 
             <div class="cascade-field hidden" id="wrap-soil-type">
-              <label for="select-soil-type">4. ชนิดดินในแปลง</label>
+              <label for="select-soil-type">4. ชนิดเนื้อดินในแปลง (อ้างอิงแม่ฮ่องสอน)</label>
               <select id="select-soil-type" required>
                 <option value="" disabled selected>เลือกชนิดดิน...</option>
-                <option value="sandy_loam">ดินร่วนปนทราย (1.45 g/cm³)</option>
+                <option value="sandy_loam">ดินร่วนปนทราย (1.55 g/cm³)</option>
                 <option value="loam">ดินร่วน (1.35 g/cm³)</option>
-                <option value="clay_loam">ดินร่วนเหนียว (1.25 g/cm³)</option>
+                <option value="clay_loam">ดินร่วนเหนียว (1.40 g/cm³)</option>
+                <option value="sandy_clay_loam">ดินร่วนเหนียวปนทราย (1.45 g/cm³)</option>
+                <option value="clay">ดินเหนียว (1.25 g/cm³)</option>
               </select>
             </div>
 
@@ -218,13 +226,13 @@
         </div>
       </section>
 
-      <!-- STAGE 3: DRONE SURVEY & GREEN COVERAGE (BEFORE / AFTER) -->
+      <!-- STAGE 3: DRONE SURVEY & GREEN COVERAGE (BEFORE / AFTER + IMAGE UPLOAD IN BOTH MODES) -->
       <section class="stage-card stage-centered hidden" data-stage="3">
         <div class="survey-stage-box">
-          <div id="survey-launch-wrap" class="clean-center-box">
-            <h2 class="stage-heading">สำรวจความเขียวของแปลงด้วยโดรน</h2>
+          <div id="survey-launch-wrap" class="clean-center-box survey-launch-spaced">
+            <h2 class="survey-big-heading">สำรวจความเขียวของแปลงด้วยโดรน</h2>
             <button id="btn-fly-survey" type="button" class="btn btn-primary btn-hero">
-              ยืนยันให้โดรนบินสำรวจ
+              ยืนยันให้โดรนบินสำรวจ?
             </button>
           </div>
 
@@ -233,34 +241,40 @@
             <span id="survey-status-text">กำลังเตรียมส่งคำสั่งให้โดรน...</span>
           </div>
 
-          <!-- Fallback Image Upload for LIVE video demo when Wi-Fi drone SDK is not connected yet -->
           <div id="survey-live-fallback" class="clean-center-box hidden">
-            <p class="fallback-msg">ยังไม่ได้เชื่อมต่อ SDK โดรน Wi-Fi อัตโนมัติ — เลือกภาพถ่ายแปลงจากโดรนเพื่อวิเคราะห์ความเขียวได้เลยครับ</p>
-            <label for="input-survey-image" class="btn btn-primary btn-lg file-btn-label">
-              เลือกรูปภาพถ่ายแปลง
+            <p class="fallback-msg">ยังไม่ได้เชื่อมต่อ SDK โดรน Wi-Fi อัตโนมัติ — เลือกภาพถ่ายแปลงเพื่อวิเคราะห์ความเขียว</p>
+            <label for="input-survey-image-fallback" class="btn btn-primary btn-lg file-btn-label">
+              เพิ่มรูปภาพแปลง
             </label>
-            <input id="input-survey-image" type="file" accept="image/*" class="visually-hidden" />
+            <input id="input-survey-image-fallback" type="file" accept="image/*" class="visually-hidden" />
           </div>
 
           <div id="survey-result-wrap" class="survey-compare-wrap hidden">
+            <div class="survey-result-title-bar">
+              <h3>การตรวจจับความเขียว</h3>
+              <span id="exg-pct-badge" class="badge badge-calculated badge-lg tabular-num">— %</span>
+            </div>
+
             <div class="compare-grid">
               <figure class="compare-card">
-                <figcaption>ภาพก่อนตรวจจับความเขียว</figcaption>
+                <figcaption>ก่อน (Before)</figcaption>
                 <div class="compare-img-box">
-                  <img id="img-before-exg" alt="ภาพแปลงก่อนตรวจจับความเขียว" />
+                  <img id="img-before-exg" alt="ภาพก่อนตรวจจับความเขียว" />
                 </div>
               </figure>
               <figure class="compare-card">
-                <figcaption>
-                  ภาพหลังตรวจจับความเขียว
-                  <span id="exg-pct-badge" class="badge badge-calculated tabular-num">— %</span>
-                </figcaption>
+                <figcaption>หลัง (After)</figcaption>
                 <div class="compare-img-box">
-                  <img id="img-after-exg" alt="ภาพแปลงหลังตรวจจับความเขียว ExG" />
+                  <img id="img-after-exg" alt="ภาพหลังตรวจจับความเขียว" />
                 </div>
               </figure>
             </div>
+
             <div class="center-cta-row">
+              <label for="input-survey-image-both" class="btn btn-secondary btn-lg file-btn-label">
+                เพิ่มรูปภาพ
+              </label>
+              <input id="input-survey-image-both" type="file" accept="image/*" class="visually-hidden" />
               <button id="btn-survey-accept" type="button" class="btn btn-primary btn-lg">
                 ตกลง
               </button>
@@ -302,9 +316,8 @@
         </div>
       </section>
 
-      <!-- STAGE 5: CALCULATE 2-SIDED TANKS (SYSTEM VS RF) + 10s VOICE + WATER BOTTLE ANIMATION -->
+      <!-- STAGE 5: CALCULATE 2-SIDED TANKS (SYSTEM VS RF) + 10s VOICE + BEAKER SVG -->
       <section class="stage-card hidden" data-stage="5">
-        <!-- Step 5A: Initial Calc Button Only -->
         <div id="calc-launch-wrap" class="clean-center-box stage-centered-inner">
           <button id="btn-calc-fertilizer" type="button" class="btn btn-primary btn-hero">
             คำนวณสูตรปุ๋ย
@@ -316,12 +329,13 @@
           <span id="calc-status-text">กำลังคำนวณปริมาณธาตุอาหารที่ดินขาด...</span>
         </div>
 
-        <!-- Step 5B: 2-Sided NPK Chamber Comparison + Convergence Lines -->
         <div id="calc-comparison-wrap" class="calc-comparison-wrap hidden">
           <div class="deficit-banner">
             <strong>สรุปปริมาณธาตุอาหาร N, P, K ที่ดินขาดและต้องเติมเพิ่ม</strong>
             <span>เปรียบเทียบค่าระหว่างสูตรคำนวณของระบบกับโมเดล Random Forest (AI)</span>
           </div>
+
+          <hr class="thin-divider" />
 
           <div class="dual-tank-arena">
             <!-- Left Side: System Formula -->
@@ -387,29 +401,32 @@
             </div>
           </div>
 
-          <!-- Convergence SVG Lines + Total Deficit + AI R2 / MAE -->
+          <!-- Convergence SVG Lines + 2-Row Summary Pill (Row 1: Total Deficit Big, Row 2: R2 & MAE) -->
           <div class="convergence-zone">
-            <svg class="convergence-svg" viewBox="0 0 600 64" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M 140 0 C 140 40, 290 24, 300 62" fill="none" stroke="var(--accent)" stroke-width="2.5" />
-              <path d="M 460 0 C 460 40, 310 24, 300 62" fill="none" stroke="var(--calc-fg)" stroke-width="2.5" />
+            <svg class="convergence-svg" viewBox="0 0 600 84" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M 140 0 C 140 48, 290 36, 300 82" fill="none" stroke="var(--accent)" stroke-width="2.5" />
+              <path d="M 460 0 C 460 48, 310 36, 300 82" fill="none" stroke="var(--calc-fg)" stroke-width="2.5" />
             </svg>
             <div class="convergence-summary-pill">
-              <div class="conv-metric">
+              <div class="conv-row-primary">
                 <span>ขาดธาตุอาหารรวม</span>
                 <strong id="conv-total-deficit" class="tabular-num">— g</strong>
               </div>
-              <div class="conv-divider"></div>
-              <div class="conv-metric">
-                <span>ความแม่นยำ AI (R²)</span>
-                <strong id="conv-r2" class="tabular-num">— %</strong>
-              </div>
-              <div class="conv-divider"></div>
-              <div class="conv-metric">
-                <span>ความคลาดเคลื่อน (MAE)</span>
-                <strong id="conv-mae" class="tabular-num">— g/m²</strong>
+              <div class="conv-row-secondary">
+                <div class="conv-metric">
+                  <span>ความแม่นยำ AI (R²)</span>
+                  <strong id="conv-r2" class="tabular-num">— %</strong>
+                </div>
+                <div class="conv-divider"></div>
+                <div class="conv-metric">
+                  <span>ความคลาดเคลื่อน (MAE)</span>
+                  <strong id="conv-mae" class="tabular-num">— g/m²</strong>
+                </div>
               </div>
             </div>
           </div>
+
+          <hr class="thick-divider" />
 
           <!-- Prominent Dispense CTA -->
           <div class="dispense-cta-zone">
@@ -419,7 +436,7 @@
           </div>
         </div>
 
-        <!-- Step 5C: Expanding Lower Live Dispensing Section with 1000 ml Animated Bottle -->
+        <!-- Step 5C: Expanding Lower Live Dispensing Section with Detailed Beaker SVG -->
         <div id="dispense-live-section" class="dispense-live-section hidden">
           <div class="dispense-panel">
             <div class="dispense-left-status">
@@ -434,15 +451,17 @@
                 <span>วินาที</span>
               </div>
 
-              <div class="channel-breakdown">
-                <div class="ch-pill"><span>N:</span> <strong id="ch-n-ml" class="tabular-num">— ml</strong></div>
-                <div class="ch-pill"><span>P:</span> <strong id="ch-p-ml" class="tabular-num">— ml</strong></div>
-                <div class="ch-pill"><span>K:</span> <strong id="ch-k-ml" class="tabular-num">— ml</strong></div>
-                <div class="ch-pill"><span>น้ำ:</span> <strong id="ch-w-ml" class="tabular-num">— ml</strong></div>
+              <!-- Vertical Channel Breakdown -->
+              <div class="channel-breakdown-col">
+                <div class="ch-pill"><span>ปุ๋ย N (ไนโตรเจน):</span> <strong id="ch-n-ml" class="tabular-num">— ml</strong></div>
+                <div class="ch-pill"><span>ปุ๋ย P (ฟอสฟอรัส):</span> <strong id="ch-p-ml" class="tabular-num">— ml</strong></div>
+                <div class="ch-pill"><span>ปุ๋ย K (โพแทสเซียม):</span> <strong id="ch-k-ml" class="tabular-num">— ml</strong></div>
+                <div class="ch-pill"><span>น้ำเปล่าเจือจาง:</span> <strong id="ch-w-ml" class="tabular-num">— ml</strong></div>
               </div>
 
-              <div class="dispense-actions">
-                <button id="btn-stop-dispense" type="button" class="btn btn-danger-outline btn-sm">
+              <!-- Vertical Actions + 2-Step Red Emergency Stop -->
+              <div class="dispense-actions-col">
+                <button id="btn-stop-dispense" type="button" class="btn btn-emergency-red btn-lg" data-armed="false">
                   หยุดจ่ายฉุกเฉิน
                 </button>
                 <button id="btn-goto-drone-final" type="button" class="btn btn-primary btn-lg hidden">
@@ -451,20 +470,58 @@
               </div>
             </div>
 
-            <!-- Real-time Water Bottle Animation (xx / 1000 ml & x / 100 %) -->
+            <!-- Detailed Graduated Laboratory Beaker SVG Animation -->
             <div class="bottle-stage">
-              <div class="bottle-wrapper" aria-label="ระดับน้ำปุ๋ยในกระบอกผสม">
-                <div class="bottle-neck"></div>
-                <div class="bottle-body">
-                  <div id="bottle-water-fill" class="bottle-water-fill"></div>
-                  <div class="bottle-ticks" aria-hidden="true">
-                    <span>1000</span><span>750</span><span>500</span><span>250</span>
-                  </div>
-                  <div class="bottle-center-readout">
-                    <strong id="bottle-ml-text" class="tabular-num">0 / 1000 ml</strong>
-                  </div>
-                </div>
-              </div>
+              <svg class="beaker-svg" viewBox="0 0 240 285" role="img" aria-label="กระบอกตวงผสมปุ๋ยขนาด 1,000 มิลลิลิตร">
+                <defs>
+                  <clipPath id="beaker-inner-clip">
+                    <rect x="46" y="42" width="136" height="214" rx="10" />
+                  </clipPath>
+                  <linearGradient id="beaker-water-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3fb975" stop-opacity="0.88" />
+                    <stop offset="100%" stop-color="#1e6b3a" stop-opacity="0.95" />
+                  </linearGradient>
+                </defs>
+
+                <!-- Glass Rim & Spout -->
+                <path d="M 38 30 C 44 30, 46 38, 46 46 V 246 A 12 12 0 0 0 58 258 H 170 A 12 12 0 0 0 182 246 V 42 C 182 35, 186 30, 192 30"
+                      fill="#f9fbf9" stroke="#1a241d" stroke-width="3.5" stroke-linejoin="round" />
+
+                <!-- Rising Animated Liquid -->
+                <g clip-path="url(#beaker-inner-clip)">
+                  <rect id="beaker-liquid-rect" x="46" y="42" width="136" height="214" fill="url(#beaker-water-grad)" />
+                  <ellipse id="beaker-meniscus" cx="114" cy="256" rx="68" ry="5" fill="#68d391" opacity="0.7" />
+                </g>
+
+                <!-- Calibrated Major Ticks + Labels at 1000, 750, 500, 250 ml -->
+                <g stroke="#1a241d" stroke-width="2" font-family="Inter, sans-serif" font-size="11.5" font-weight="600" fill="#48544c">
+                  <!-- 1000 ml -->
+                  <line x1="158" y1="56" x2="182" y2="56" />
+                  <text x="190" y="60" stroke="none">1000</text>
+                  <!-- 875 ml minor -->
+                  <line x1="168" y1="81" x2="182" y2="81" stroke-width="1.2" opacity="0.6" />
+                  <!-- 750 ml -->
+                  <line x1="158" y1="106" x2="182" y2="106" />
+                  <text x="190" y="110" stroke="none">750</text>
+                  <!-- 625 ml minor -->
+                  <line x1="168" y1="131" x2="182" y2="131" stroke-width="1.2" opacity="0.6" />
+                  <!-- 500 ml -->
+                  <line x1="158" y1="156" x2="182" y2="156" />
+                  <text x="190" y="160" stroke="none">500</text>
+                  <!-- 375 ml minor -->
+                  <line x1="168" y1="181" x2="182" y2="181" stroke-width="1.2" opacity="0.6" />
+                  <!-- 250 ml -->
+                  <line x1="158" y1="206" x2="182" y2="206" />
+                  <text x="190" y="210" stroke="none">250</text>
+                  <!-- 125 ml minor -->
+                  <line x1="168" y1="231" x2="182" y2="231" stroke-width="1.2" opacity="0.6" />
+                </g>
+
+                <!-- Center ml Readout Pill -->
+                <rect x="62" y="136" width="104" height="32" rx="16" fill="#ffffff" fill-opacity="0.93" stroke="#c4ccbe" stroke-width="1.5" />
+                <text id="bottle-ml-text" x="114" y="157" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1a241d">0 / 1000 ml</text>
+              </svg>
+
               <div class="bottle-pct-caption tabular-num">
                 <strong id="bottle-pct-text">0 / 100%</strong>
               </div>
@@ -473,56 +530,107 @@
         </div>
       </section>
 
-      <!-- STAGE 6: FINAL DRONE REFILL STATION (AUTO CONCEPT + CLIP MODE) & SPRAY -->
+      <!-- STAGE 6: FINAL DRONE REFILL (REVEALS ANIMATED SVG ON CONFIRM) & COMPLETE SUMMARY BOX -->
       <section class="stage-card stage-centered hidden" data-stage="6">
         <div class="drone-final-box">
           <h2 class="stage-heading">เติมน้ำปุ๋ยเข้าตลับโดรนและบินพ่น</h2>
 
-          <!-- Interactive SVG Concept Diagram: Automatic Tap Dock -> Drone Belly Pod -->
-          <div class="dock-concept-card">
-            <svg class="dock-svg" viewBox="0 0 420 175" aria-label="แผนภาพสถานีเติมน้ำปุ๋ยอัตโนมัติลงตลับใต้โดรน">
-              <!-- Mixing Supply Tank & Tap -->
-              <rect x="26" y="24" width="76" height="106" rx="8" fill="#e6f3ea" stroke="#1e6b3a" stroke-width="2" />
-              <rect x="30" y="64" width="68" height="62" rx="4" fill="#2f9e5b" opacity="0.35" />
-              <text x="64" y="148" text-anchor="middle" font-size="11" fill="#48544c">ถังผสม 1,000 ml</text>
-              <!-- Pipe & Automated Nozzle Valve -->
-              <path d="M 102 52 H 192 V 76" fill="none" stroke="#1a241d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-              <circle cx="152" cy="52" r="9" fill="#c96a1b" />
-              <text x="152" y="34" text-anchor="middle" font-size="10" fill="#7a5c43">วาล์วก๊อกอัตโนมัติ</text>
-              <!-- Stream -->
-              <line id="svg-refill-stream" x1="192" y1="80" x2="192" y2="112" stroke="#1e6b3a" stroke-width="4" stroke-dasharray="5 4" opacity="0.2" />
-              <!-- Drone & Pod -->
-              <g id="svg-drone-group">
-                <line x1="145" y1="100" x2="239" y2="100" stroke="#1a241d" stroke-width="4" stroke-linecap="round" />
-                <line x1="138" y1="92" x2="162" y2="92" stroke="#48544c" stroke-width="3" />
-                <line x1="222" y1="92" x2="246" y2="92" stroke="#48544c" stroke-width="3" />
-                <rect x="172" y="96" width="40" height="14" rx="5" fill="#1a241d" />
-                <!-- Modular Spray Pod -->
-                <rect x="179" y="112" width="26" height="20" rx="4" fill="#ffffff" stroke="#1e6b3a" stroke-width="2" />
-                <text x="192" y="152" text-anchor="middle" font-size="11" fill="#185a37">ตลับพ่น 8–10 ml</text>
+          <!-- Hidden until user clicks confirm button -->
+          <div id="dock-concept-card" class="dock-concept-card hidden">
+            <svg class="dock-svg" viewBox="0 0 460 190" aria-label="แอนิเมชันสถานีเติมน้ำปุ๋ยอัตโนมัติและโดรนบินพ่น">
+              <!-- Supply Tank -->
+              <rect x="20" y="28" width="76" height="114" rx="8" fill="#e6f3ea" stroke="#1e6b3a" stroke-width="2" />
+              <rect x="24" y="68" width="68" height="70" rx="4" fill="#2f9e5b" opacity="0.4" />
+              <text x="58" y="160" text-anchor="middle" font-size="11" fill="#48544c">ถังผสม 1,000 ml</text>
+
+              <!-- Pipe & Automated Tap Valve -->
+              <path d="M 96 56 H 178 V 80" fill="none" stroke="#1a241d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+              <circle id="svg-tap-valve" cx="140" cy="56" r="9" fill="#c96a1b" />
+              <text x="140" y="38" text-anchor="middle" font-size="10" fill="#7a5c43">ก๊อกเติมอัตโนมัติ</text>
+
+              <!-- Animated Refill Stream -->
+              <line id="svg-refill-stream" x1="178" y1="84" x2="178" y2="116" stroke="#1e6b3a" stroke-width="4" stroke-dasharray="5 4" opacity="0" />
+
+              <!-- Animated Drone + Belly Spray Pod -->
+              <g id="svg-drone-group" class="svg-drone-group">
+                <line x1="138" y1="104" x2="218" y2="104" stroke="#1a241d" stroke-width="4" stroke-linecap="round" />
+                <line id="rotor-l" x1="130" y1="96" x2="154" y2="96" stroke="#48544c" stroke-width="3" />
+                <line id="rotor-r" x1="202" y1="96" x2="226" y2="96" stroke="#48544c" stroke-width="3" />
+                <rect x="160" y="100" width="36" height="14" rx="5" fill="#1a241d" />
+                <rect x="166" y="115" width="24" height="18" rx="4" fill="#ffffff" stroke="#1e6b3a" stroke-width="2" />
+                <rect id="svg-pod-liquid" x="168" y="129" width="20" height="0" rx="2" fill="#2f9e5b" opacity="0.85" />
+                <!-- Spray Droplets -->
+                <g id="svg-spray-drops" opacity="0">
+                  <line x1="172" y1="136" x2="166" y2="154" stroke="#1e8e4e" stroke-width="2" stroke-dasharray="3 3" />
+                  <line x1="178" y1="136" x2="178" y2="156" stroke="#1e8e4e" stroke-width="2" stroke-dasharray="3 3" />
+                  <line x1="184" y1="136" x2="190" y2="154" stroke="#1e8e4e" stroke-width="2" stroke-dasharray="3 3" />
+                </g>
               </g>
-              <!-- Crop Tray -->
-              <rect x="295" y="114" width="102" height="22" rx="4" fill="#eff4ef" stroke="#7a5c43" stroke-width="1.5" />
-              <circle cx="322" cy="108" r="8" fill="#1e6b3a" />
-              <circle cx="346" cy="105" r="9" fill="#2f9e5b" />
-              <circle cx="372" cy="108" r="8" fill="#1e6b3a" />
-              <text x="346" y="152" text-anchor="middle" font-size="11" fill="#48544c">แปลงเป้าหมาย</text>
+
+              <!-- Crop Tray Target -->
+              <rect x="292" y="126" width="144" height="24" rx="5" fill="#eff4ef" stroke="#7a5c43" stroke-width="1.5" />
+              <circle cx="322" cy="118" r="10" fill="#1e6b3a" />
+              <circle cx="362" cy="115" r="11" fill="#2f9e5b" />
+              <circle cx="404" cy="118" r="10" fill="#1e6b3a" />
+              <text x="364" y="168" text-anchor="middle" font-size="11" fill="#48544c">แปลงเป้าหมาย</text>
             </svg>
 
             <p class="dock-caption">
-              <strong>ตอนถ่ายคลิป:</strong> นำน้ำปุ๋ยที่ผสมเสร็จ 8–10 ml เติมใส่ตลับใต้โดรนแล้วกดปุ่มด้านล่าง •
-              <strong>เป้าหมายจริง:</strong> โดรนบินเข้าจุดจอดใต้ก๊อกเติมอัตโนมัติจนเต็มแล้วออกพ่นทันที
+              <strong>ตอนถ่ายคลิป:</strong> นำน้ำปุ๋ย 8–10 ml ใส่ตลับใต้โดรน •
+              <strong>เป้าหมายจริง:</strong> โดรนเข้าจุดจอดรับน้ำใต้ก๊อกเติมอัตโนมัติแล้วบินพ่นทันที
             </p>
           </div>
 
-          <div class="live-status-pill" role="status" aria-live="polite">
+          <div id="final-status-pill" class="live-status-pill" role="status" aria-live="polite">
             <span class="pulse-dot" aria-hidden="true"></span>
-            <strong id="final-drone-status">พร้อมเติมน้ำปุ๋ยลงตลับและออกบินพ่น</strong>
+            <strong id="final-drone-status">พร้อมเติมน้ำปุ๋ยลงตลับ (8–10 ml) และออกบินพ่น</strong>
           </div>
 
-          <div class="center-cta-row">
+          <div id="final-cta-wrap" class="center-cta-row">
             <button id="btn-final-drone-run" type="button" class="btn btn-primary btn-hero">
               ยืนยันเติมน้ำปุ๋ยและเริ่มบินพ่น
+            </button>
+          </div>
+
+          <!-- Celebratory Done Badge & Complete Summary Box (Replaces Button Upon Completion) -->
+          <div id="final-complete-summary" class="final-complete-summary hidden">
+            <div class="complete-banner">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <polyline points="22 4 12 14.01 9 11.01" />
+              </svg>
+              <strong>เสร็จสิ้นระบบทั้งหมด!</strong>
+            </div>
+
+            <div class="summary-cards-grid">
+              <div class="sum-card">
+                <span class="sum-k">แปลง &amp; พื้นที่</span>
+                <strong id="sum-plot-area">—</strong>
+              </div>
+              <div class="sum-card">
+                <span class="sum-k">พืช พันธุ์ ระยะ &amp; ดิน</span>
+                <strong id="sum-crop-soil">—</strong>
+              </div>
+              <div class="sum-card">
+                <span class="sum-k">ความเขียวใบ (ExG)</span>
+                <strong id="sum-exg">—</strong>
+              </div>
+              <div class="sum-card">
+                <span class="sum-k">ค่าเฉลี่ยดินที่วัดได้</span>
+                <strong id="sum-soil-avg">—</strong>
+              </div>
+              <div class="sum-card">
+                <span class="sum-k">ธาตุอาหารที่เติม + สูตร 1,000 ml</span>
+                <strong id="sum-mix-plan">—</strong>
+              </div>
+              <div class="sum-card">
+                <span class="sum-k">ชุดพ่นโดรน (Modular)</span>
+                <strong>บรรจุ 8–10 ml • บินพ่นครบแปลงเรียบร้อย</strong>
+              </div>
+            </div>
+
+            <button id="btn-restart-workflow" type="button" class="btn btn-secondary btn-lg">
+              เริ่มแปลงใหม่
             </button>
           </div>
         </div>

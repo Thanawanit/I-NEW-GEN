@@ -1,19 +1,28 @@
 /**
  * Smart Bio-Fert Drone — Focused Single-Stage Wizard Controller
  * - Strict SIM vs LIVE isolation across every stage, API request, and UI state.
- * - Progressive disclosure: only the active step's UI is shown.
- * - Follows modern-web-guidance patterns for <dialog>, <progress>, <select>, and compositor motion.
+ * - Stage header pill, vertical left map dock with point-level Undo, 5 Mae Hong Son soils,
+ *   Before/After image upload in both modes, graduated beaker SVG + 2-step emergency stop,
+ *   animated Stage 6 drone refill/spray reveal, and final complete summary card.
  */
 
 const STAGE_TITLES = [
-  "ขั้นที่ 1 จาก 7 • ตั้งชื่อแปลงที่ดิน",
-  "ขั้นที่ 2 จาก 7 • วาดขอบเขตแปลงบนแผนที่ดาวเทียม",
-  "ขั้นที่ 3 จาก 7 • เลือกชนิดพืชและชนิดดิน",
-  "ขั้นที่ 4 จาก 7 • โดรนสำรวจความเขียวของแปลง",
-  "ขั้นที่ 5 จาก 7 • ตรวจวัดธาตุอาหารในดิน",
-  "ขั้นที่ 6 จาก 7 • คำนวณสูตรปุ๋ยและจ่ายผสม 1,000 ml",
-  "ขั้นที่ 7 จาก 7 • เติมน้ำเข้าตลับโดรนและบินพ่น",
+  "ขั้นที่ 1 (ตั้งชื่อแปลงที่ดิน)",
+  "ขั้นที่ 2 (กำหนดแผนที่ และขนาด)",
+  "ขั้นที่ 3 (เลือกชนิดพืช พันธุ์ และชนิดดิน)",
+  "ขั้นที่ 4 (โดรนสำรวจความเขียวของแปลง)",
+  "ขั้นที่ 5 (ตรวจวัดธาตุอาหารในดิน)",
+  "ขั้นที่ 6 (คำนวณสูตร และผสมปุ๋ย)",
+  "ขั้นที่ 7 (โดรนเติมปุ๋ย และบินพ่น)",
 ];
+
+const SOIL_LABELS = {
+  sandy_loam: "ดินร่วนปนทราย (1.55 g/cm³)",
+  loam: "ดินร่วน (1.35 g/cm³)",
+  clay_loam: "ดินร่วนเหนียว (1.40 g/cm³)",
+  sandy_clay_loam: "ดินร่วนเหนียวปนทราย (1.45 g/cm³)",
+  clay: "ดินเหนียว (1.25 g/cm³)",
+};
 
 function createEmptyModeState() {
   return {
@@ -43,6 +52,7 @@ function createEmptyModeState() {
     },
     soil: {
       points: [],
+      avgSummary: null,
       done: false,
     },
     mixer: {
@@ -62,7 +72,7 @@ function createEmptyModeState() {
 }
 
 const appState = {
-  activeMode: "sim", // 'sim' | 'live'
+  activeMode: "sim",
   crops: [],
   byMode: {
     sim: createEmptyModeState(),
@@ -122,8 +132,7 @@ function goToStage(stageIndex) {
   if (idx > s.maxStage) s.maxStage = idx;
 
   document.querySelectorAll("[data-stage]").forEach((el) => {
-    const elStage = Number(el.dataset.stage);
-    el.classList.toggle("hidden", elStage !== idx);
+    el.classList.toggle("hidden", Number(el.dataset.stage) !== idx);
   });
 
   document.querySelectorAll("#step-dots .dot-btn").forEach((btn) => {
@@ -174,6 +183,7 @@ function restoreModeUI() {
   // Map polygon restore (strict SIM vs LIVE undo history isolation)
   undoStack = [];
   redoStack = [];
+  drawingVertexCount = 0;
   if (drawnItems) {
     drawnItems.clearLayers();
     activePolygonLayer = null;
@@ -210,6 +220,13 @@ function restoreModeUI() {
   document.getElementById("dispense-live-section").classList.toggle("hidden", !s.mixer.dispensedDone);
   if (hasCalc) renderMixerComparison();
 
+  // Final drone stage restore
+  const finalDone = Boolean(s.finalDrone.done);
+  document.getElementById("dock-concept-card").classList.toggle("hidden", !finalDone);
+  document.getElementById("final-cta-wrap").classList.toggle("hidden", finalDone);
+  document.getElementById("final-complete-summary").classList.toggle("hidden", !finalDone);
+  if (finalDone) populateFinalSummary();
+
   goToStage(s.stage);
 }
 
@@ -235,13 +252,14 @@ function bindStage0() {
   });
 }
 
-/* ==================== STAGE 1: SATELLITE MAP + POLYGON ONLY ==================== */
+/* ==================== STAGE 1: SATELLITE MAP + VERTICAL DOCK + POLYGON ==================== */
 
 let mapInstance = null;
 let drawnItems = null;
 let polygonDrawer = null;
 let undoStack = [];
 let redoStack = [];
+let drawingVertexCount = 0;
 let activePolygonLayer = null;
 
 function computeGeodesicAreaM2(latlngs) {
@@ -250,7 +268,8 @@ function computeGeodesicAreaM2(latlngs) {
 }
 
 function updateUndoRedoButtons() {
-  document.getElementById("btn-map-undo").disabled = undoStack.length <= 1;
+  const canUndoPoint = Boolean(polygonDrawer && polygonDrawer._enabled && drawingVertexCount > 0);
+  document.getElementById("btn-map-undo").disabled = !(canUndoPoint || undoStack.length > 1);
   document.getElementById("btn-map-redo").disabled = redoStack.length === 0;
 }
 
@@ -341,11 +360,12 @@ function enableWholePolygonDrag(layer) {
 
 function createEditablePolygonLayer(latlngs, recordSnapshot = true) {
   drawnItems.clearLayers();
+  // High-contrast Amber/Gold outline so boundaries stand out clearly against green satellite foliage
   const poly = L.polygon(latlngs, {
-    color: "#1e6b3a",
-    fillColor: "#2f9e5b",
-    fillOpacity: 0.28,
-    weight: 2.5,
+    color: "#f59e0b",
+    fillColor: "#fbbf24",
+    fillOpacity: 0.25,
+    weight: 3.5,
   });
   drawnItems.addLayer(poly);
   activePolygonLayer = poly;
@@ -369,12 +389,26 @@ function createEditablePolygonLayer(latlngs, recordSnapshot = true) {
 
 function initStage1Map() {
   if (!window.L) return;
-  // Satellite Imagery ONLY (Esri World Imagery) — no layer switcher
+
+  // Concise, natural Thai hover tooltips on Leaflet.Draw
+  if (L.drawLocal) {
+    L.drawLocal.draw.handlers.polygon.tooltip = {
+      start: "คลิกบนแผนที่เพื่อวางจุดแรก",
+      cont: "คลิกวางจุดถัดไปเรื่อยๆ",
+      end: "คลิกจุดแรก (หรือดับเบิลคลิก) เพื่อปิดขอบเขต",
+    };
+    L.drawLocal.edit.handlers.edit.tooltip = {
+      text: "ลากจุดขาวเพื่อปรับมุม หรือลากพื้นที่เพื่อย้าย",
+      subtext: "กด บันทึก เมื่อเสร็จสิ้น",
+    };
+  }
+
   mapInstance = L.map("map", {
     center: [18.8392, 97.9262],
     zoom: 17,
-    zoomControl: true,
+    zoomControl: false,
   });
+  L.control.zoom({ position: "topright" }).addTo(mapInstance);
 
   L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -384,27 +418,50 @@ function initStage1Map() {
   drawnItems = new L.FeatureGroup();
   mapInstance.addLayer(drawnItems);
 
-  // Polygon only — rectangle intentionally excluded
   polygonDrawer = new L.Draw.Polygon(mapInstance, {
     allowIntersection: false,
     showArea: true,
-    shapeOptions: { color: "#1e6b3a", fillOpacity: 0.28, weight: 2.5 },
+    shapeOptions: { color: "#f59e0b", fillColor: "#fbbf24", fillOpacity: 0.25, weight: 3.5 },
+  });
+
+  mapInstance.on(L.Draw.Event.DRAWVERTEX, (e) => {
+    drawingVertexCount = e.layers ? e.layers.getLayers().length : drawingVertexCount + 1;
+    updateUndoRedoButtons();
+  });
+
+  mapInstance.on(L.Draw.Event.DRAWSTART, () => {
+    drawingVertexCount = 0;
+    updateUndoRedoButtons();
+  });
+
+  mapInstance.on(L.Draw.Event.DRAWSTOP, () => {
+    drawingVertexCount = 0;
+    updateUndoRedoButtons();
   });
 
   mapInstance.on(L.Draw.Event.CREATED, (e) => {
+    drawingVertexCount = 0;
     const pts = e.layer.getLatLngs()[0];
     createEditablePolygonLayer(pts, true);
     document.getElementById("map-tool-hint").textContent =
-      "วาดสำเร็จ! ลากจุดขาวเพื่อปรับมุม หรือลากพื้นที่เพื่อย้ายตำแหน่งได้เลย";
+      "วาดแล้ว! ลากจุดเพื่อปรับมุม หรือลากทั้งรูปเพื่อย้าย";
   });
 
   document.getElementById("btn-map-draw").addEventListener("click", () => {
+    drawingVertexCount = 0;
     polygonDrawer.enable();
+    updateUndoRedoButtons();
     document.getElementById("map-tool-hint").textContent =
-      "จิ้มจุดรอบแปลงบนแผนที่ แล้วกดจุดแรกอีกครั้งเพื่อปิดรูปแปลง";
+      "คลิกวางจุดรอบแปลง (กดย้อนกลับได้ทีละจุด)";
   });
 
   document.getElementById("btn-map-undo").addEventListener("click", () => {
+    if (polygonDrawer && polygonDrawer._enabled && drawingVertexCount > 0) {
+      polygonDrawer.deleteLastVertex();
+      drawingVertexCount = Math.max(0, drawingVertexCount - 1);
+      updateUndoRedoButtons();
+      return;
+    }
     if (undoStack.length <= 1) return;
     const current = undoStack.pop();
     redoStack.push(current);
@@ -422,24 +479,26 @@ function initStage1Map() {
 
   document.getElementById("btn-map-reset").addEventListener("click", () => {
     if (polygonDrawer) polygonDrawer.disable();
+    drawingVertexCount = 0;
     drawnItems.clearLayers();
     activePolygonLayer = null;
     undoStack = [];
     redoStack = [];
     updateUndoRedoButtons();
     syncPolygonToState(null);
-    document.getElementById("map-tool-hint").textContent =
-      "กดปุ่มวาดแล้วจิ้มมุมแปลง หรือลากจุดเพื่อย้ายตำแหน่งได้เลย";
+    document.getElementById("map-tool-hint").textContent = "จิ้มวางจุดรอบแปลง หรือลากจุดเพื่อย้าย";
   });
 
   document.getElementById("btn-map-apply").addEventListener("click", () => {
     if (polygonDrawer) polygonDrawer.disable();
+    drawingVertexCount = 0;
+    updateUndoRedoButtons();
     if (activePolygonLayer) {
       if (activePolygonLayer.editing) activePolygonLayer.editing.disable();
       const pts = activePolygonLayer.getLatLngs()[0];
       syncPolygonToState(pts);
       setTimeout(() => activePolygonLayer && activePolygonLayer.editing && activePolygonLayer.editing.enable(), 40);
-      document.getElementById("map-tool-hint").textContent = "บันทึกขอบเขตแปลงเรียบร้อยแล้ว";
+      document.getElementById("map-tool-hint").textContent = "บันทึกขอบเขตแปลงเรียบร้อย";
     }
   });
 
@@ -624,6 +683,31 @@ function showSurveyImages(origUrl, maskUrl, greenPct) {
   document.getElementById("survey-result-wrap").classList.remove("hidden");
 }
 
+async function handleSurveyImageUpload(file) {
+  if (!file) return;
+  const s = currentState();
+  document.getElementById("survey-launch-wrap").classList.add("hidden");
+  document.getElementById("survey-live-fallback").classList.add("hidden");
+  document.getElementById("survey-status-wrap").classList.remove("hidden");
+  document.getElementById("survey-status-text").textContent = "กำลังวิเคราะห์พื้นที่สีเขียว (ExG) จากภาพถ่าย...";
+
+  const origDataUrl = await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+
+  const formData = new FormData();
+  formData.append("image", file);
+  formData.append("mode", appState.activeMode);
+  formData.append("plot_id", String(s.plot.id || 1));
+
+  const res = await apiRequest("/api/drone/analyze-image", { method: "POST", body: formData });
+  if (res && typeof res.green_coverage_pct === "number") {
+    showSurveyImages(origDataUrl, res.mask_image_url, res.green_coverage_pct);
+  }
+}
+
 function bindStage3() {
   document.getElementById("btn-fly-survey").addEventListener("click", async () => {
     const s = currentState();
@@ -646,7 +730,6 @@ function bindStage3() {
     });
 
     if (mode === "live" && mission.__status === 501) {
-      // Live drone Wi-Fi SDK not wired yet -> switch smoothly to photo upload fallback
       statusWrap.classList.add("hidden");
       document.getElementById("survey-live-fallback").classList.remove("hidden");
       return;
@@ -664,29 +747,11 @@ function bindStage3() {
     }
   });
 
-  document.getElementById("input-survey-image").addEventListener("change", async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const s = currentState();
-    document.getElementById("survey-live-fallback").classList.add("hidden");
-    document.getElementById("survey-status-wrap").classList.remove("hidden");
-    document.getElementById("survey-status-text").textContent = "กำลังวิเคราะห์พื้นที่สีเขียว (ExG) จากภาพถ่าย...";
-
-    const origDataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.readAsDataURL(file);
-    });
-
-    const formData = new FormData();
-    formData.append("image", file);
-    formData.append("mode", appState.activeMode);
-    formData.append("plot_id", String(s.plot.id || 1));
-
-    const res = await apiRequest("/api/drone/analyze-image", { method: "POST", body: formData });
-    if (res && typeof res.green_coverage_pct === "number") {
-      showSurveyImages(origDataUrl, res.mask_image_url, res.green_coverage_pct);
-    }
+  document.getElementById("input-survey-image-fallback").addEventListener("change", (e) => {
+    handleSurveyImageUpload(e.target.files?.[0]);
+  });
+  document.getElementById("input-survey-image-both").addEventListener("change", (e) => {
+    handleSurveyImageUpload(e.target.files?.[0]);
   });
 
   document.getElementById("btn-survey-accept").addEventListener("click", () => goToStage(4));
@@ -712,7 +777,6 @@ function renderProbeCards(pointsList) {
   }
 
   bar.value = validPts.length;
-  // Clean non-pressuring count (never display "x/15")
   countText.textContent = `ปักแล้ว ${validPts.length} ครั้ง`;
   confirmWrap.classList.toggle("hidden", validPts.length === 0 || _probeRunning);
 
@@ -774,13 +838,13 @@ async function startAutoSoilProbing() {
   document.getElementById("probe-progress-wrap").classList.remove("hidden");
   document.getElementById("probe-confirm-wrap").classList.add("hidden");
 
-  // Clear previous points cleanly on fresh start
   await apiRequest("/api/soil/points", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ plot_id: s.plot.id || 1, mode, action: "clear_all" }),
   });
   s.soil.points = [];
+  s.soil.avgSummary = null;
   renderProbeCards([]);
 
   let currentPoint = 1;
@@ -807,7 +871,6 @@ async function startAutoSoilProbing() {
         });
       }
     } else {
-      // Realistic SIM soil variation per sample spot
       bodyPayload.n = Math.round(14 + Math.random() * 12);
       bodyPayload.p = Math.round(7 + Math.random() * 7);
       bodyPayload.k = Math.round(30 + Math.random() * 18);
@@ -823,6 +886,7 @@ async function startAutoSoilProbing() {
     if (!_probeRunning) return;
     if (res && !res.__error) {
       s.soil.points = res.points || [];
+      s.soil.avgSummary = res.average || null;
       renderProbeCards(s.soil.points);
 
       if (currentPoint >= 15) {
@@ -852,10 +916,11 @@ function bindStage4() {
   document.getElementById("btn-soil-confirm").addEventListener("click", () => goToStage(5));
 }
 
-/* ==================== STAGE 5: DUAL COMPARISON + 10s VOICE + BOTTLE ANIMATION ==================== */
+/* ==================== STAGE 5: DUAL COMPARISON + 10s VOICE + BEAKER SVG ==================== */
 
 let _countdownTimer = null;
 let _dispensePollTimer = null;
+let _stopArmResetTimer = null;
 
 function stopDispenseTimers() {
   if (_countdownTimer) {
@@ -868,13 +933,38 @@ function stopDispenseTimers() {
   }
 }
 
+function resetEmergencyStopButton() {
+  const stopBtn = document.getElementById("btn-stop-dispense");
+  if (!stopBtn) return;
+  stopBtn.dataset.armed = "false";
+  stopBtn.textContent = "หยุดจ่ายฉุกเฉิน";
+  if (_stopArmResetTimer) {
+    clearTimeout(_stopArmResetTimer);
+    _stopArmResetTimer = null;
+  }
+}
+
 function updateBottleVisual(dispensedMl, totalMl = 1000) {
   const safeTotal = totalMl > 0 ? totalMl : 1000;
   const clamped = Math.max(0, Math.min(safeTotal, Number(dispensedMl || 0)));
   const frac = clamped / safeTotal;
   const pct = frac * 100;
 
-  document.getElementById("bottle-water-fill").style.transform = `scaleY(${frac.toFixed(4)})`;
+  // Height of beaker inner clip = 214px (from y=42 to y=256)
+  const liquidH = 214 * frac;
+  const liquidY = 256 - liquidH;
+
+  const rect = document.getElementById("beaker-liquid-rect");
+  const meniscus = document.getElementById("beaker-meniscus");
+  if (rect) {
+    rect.setAttribute("y", liquidY.toFixed(1));
+    rect.setAttribute("height", liquidH.toFixed(1));
+  }
+  if (meniscus) {
+    meniscus.setAttribute("cy", liquidY.toFixed(1));
+    meniscus.setAttribute("opacity", frac > 0.01 ? "0.7" : "0");
+  }
+
   document.getElementById("bottle-ml-text").textContent = `${clamped.toFixed(0)} / ${safeTotal.toFixed(0)} ml`;
   document.getElementById("bottle-pct-text").textContent = `${pct.toFixed(0)} / 100%`;
 }
@@ -950,6 +1040,7 @@ function bindStage5() {
 
   document.getElementById("btn-start-dispense").addEventListener("click", () => {
     stopDispenseTimers();
+    resetEmergencyStopButton();
     const s = currentState();
     const mode = appState.activeMode;
     const liveSection = document.getElementById("dispense-live-section");
@@ -1013,13 +1104,11 @@ function bindStage5() {
           }
         }, 250);
       } else {
-        // SIM mode realistic sequential N -> P -> K -> Water fill animation up to 1000 ml
         const vN = Number(s.mixer.volumes?.n || 0);
         const vP = Number(s.mixer.volumes?.p || 0);
         const vK = Number(s.mixer.volumes?.k || 0);
-        const vW = Number(s.mixer.volumes?.water || totalBatch);
         let simMl = 0;
-        const stepMl = totalBatch / 36; // ~9 seconds smooth demo
+        const stepMl = totalBatch / 36;
 
         _dispensePollTimer = setInterval(() => {
           simMl = Math.min(totalBatch, simMl + stepMl);
@@ -1042,37 +1131,97 @@ function bindStage5() {
     }, 1000);
   });
 
-  document.getElementById("btn-stop-dispense").addEventListener("click", async () => {
+  // 2-Step Confirmation Red Emergency Stop
+  document.getElementById("btn-stop-dispense").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    if (btn.dataset.armed !== "true") {
+      btn.dataset.armed = "true";
+      btn.textContent = "กดยืนยันอีกครั้งเพื่อหยุดจ่ายฉุกเฉิน!";
+      _stopArmResetTimer = setTimeout(resetEmergencyStopButton, 4000);
+      return;
+    }
+
+    resetEmergencyStopButton();
     stopDispenseTimers();
     if (appState.activeMode === "live") {
       await apiRequest("/api/mixer/stop-live", { method: "POST" });
     }
+    document.getElementById("countdown-banner").classList.add("hidden");
     document.getElementById("dispense-status-text").textContent = "หยุดการจ่ายน้ำฉุกเฉินแล้ว";
   });
 
   document.getElementById("btn-goto-drone-final").addEventListener("click", () => goToStage(6));
 }
 
-/* ==================== STAGE 6: DRONE REFILL STATION & FINAL SPRAY ==================== */
+/* ==================== STAGE 6: ANIMATED DRONE SVG & COMPLETE SUMMARY ==================== */
+
+function populateFinalSummary() {
+  const s = currentState();
+  const area = s.plot.confirmedAreaM2 || 0;
+  document.getElementById("sum-plot-area").textContent =
+    `${s.plot.name || "แปลงสาธิต"} (${formatNum(area, 1)} ตร.ม.)`;
+
+  const soilName = SOIL_LABELS[s.crop.soilType] || s.crop.soilType || "ดินร่วน";
+  document.getElementById("sum-crop-soil").textContent =
+    `${s.crop.cropName} • ${s.crop.variety} • ${s.crop.growthStage} • ${soilName}`;
+
+  document.getElementById("sum-exg").textContent =
+    s.survey.greenPct !== null ? `${formatNum(s.survey.greenPct, 1)} %` : "—";
+
+  const avg = s.soil.avgSummary;
+  const pts = (s.soil.points || []).filter((p) => p && p.n !== null);
+  if (avg) {
+    document.getElementById("sum-soil-avg").textContent =
+      `N ${formatNum(avg.n, 0)} / P ${formatNum(avg.p, 0)} / K ${formatNum(avg.k, 0)} mg/kg • pH ${formatNum(avg.ph, 1)} (${pts.length} จุด)`;
+  } else if (pts.length > 0) {
+    const p0 = pts[0];
+    document.getElementById("sum-soil-avg").textContent =
+      `N ${formatNum(p0.n, 0)} / P ${formatNum(p0.p, 0)} / K ${formatNum(p0.k, 0)} • pH ${formatNum(p0.ph, 1)}`;
+  } else {
+    document.getElementById("sum-soil-avg").textContent = "—";
+  }
+
+  const vols = s.mixer.volumes || {};
+  const sys = s.mixer.sysDeficit || {};
+  const totDef = Number(sys.n || 0) + Number(sys.p2o5 || 0) + Number(sys.k2o || 0);
+  document.getElementById("sum-mix-plan").textContent =
+    `ขาดรวม ${totDef.toFixed(1)} g | N ${formatNum(vols.n, 0)} + P ${formatNum(vols.p, 0)} + K ${formatNum(vols.k, 0)} + น้ำ ${formatNum(vols.water, 0)} ml`;
+}
 
 function bindStage6() {
   const btn = document.getElementById("btn-final-drone-run");
   const statusEl = document.getElementById("final-drone-status");
+  const dockCard = document.getElementById("dock-concept-card");
   const streamEl = document.getElementById("svg-refill-stream");
+  const podLiquidEl = document.getElementById("svg-pod-liquid");
+  const sprayDropsEl = document.getElementById("svg-spray-drops");
 
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     const s = currentState();
     const isLive = appState.activeMode === "live";
 
+    // Reveal SVG only after user confirms!
+    dockCard.classList.remove("hidden", "phase-fly", "phase-land");
+    podLiquidEl.setAttribute("y", "131");
+    podLiquidEl.setAttribute("height", "0");
+    sprayDropsEl.setAttribute("opacity", "0");
+
+    // Step 1: Filling Belly Spray Pod
     statusEl.textContent = "1. เปิดก๊อกสถานีเติมน้ำปุ๋ย 8–10 ml ลงตลับใต้โดรน...";
-    if (streamEl) streamEl.setAttribute("opacity", "0.95");
+    streamEl.setAttribute("opacity", "0.95");
+    podLiquidEl.setAttribute("y", "119");
+    podLiquidEl.setAttribute("height", "12");
+    await new Promise((r) => setTimeout(r, 1300));
+
+    // Step 2: Close valve & prepare takeoff
+    streamEl.setAttribute("opacity", "0");
+    statusEl.textContent = "2. ปิดวาล์วเรียบร้อย — โดรนกำลังบินไปยังแปลงเป้าหมาย...";
+    dockCard.classList.add("phase-fly");
     await new Promise((r) => setTimeout(r, 1200));
 
-    statusEl.textContent = "2. ปิดวาล์วและล็อกตลับเรียบร้อย — เตรียมนำโดรนขึ้นบิน...";
-    if (streamEl) streamEl.setAttribute("opacity", "0.15");
-    await new Promise((r) => setTimeout(r, 900));
-
+    // Step 3: Spray droplets over crops
+    sprayDropsEl.setAttribute("opacity", "0.95");
     statusEl.textContent = "3. โดรนกำลังบินพ่นปุ๋ยละอองฝอยเหนือแปลงเป้าหมาย...";
     await apiRequest("/api/drone/mission", {
       method: "POST",
@@ -1085,14 +1234,26 @@ function bindStage6() {
         job_id: s.mixer.jobId,
       }),
     });
-    await new Promise((r) => setTimeout(r, 1400));
+    await new Promise((r) => setTimeout(r, 1500));
 
+    // Step 4: Landing & Complete Summary Reveal
+    sprayDropsEl.setAttribute("opacity", "0");
+    dockCard.classList.add("phase-land");
     s.finalDrone.done = true;
     statusEl.textContent = isLive
-      ? "4. เสร็จสิ้นภารกิจ (หากใช้โดรนบังคับมือ ให้บินพ่นตามเส้นทางจริงได้เลย)"
-      : "4. โดรนบินพ่นและลงจอดปลอดภัย — เสร็จสิ้นภารกิจครบทุกขั้นตอน!";
-    speakThai("เสร็จสิ้นภารกิจพ่นปุ๋ยเรียบร้อยแล้วครับ");
+      ? "เสร็จสิ้นการเตรียมพร้อม (หากใช้โดรนบังคับมือ สามารถบินพ่นจริงได้ทันที)"
+      : "โดรนบินพ่นและลงจอดปลอดภัยแล้ว";
+
+    document.getElementById("final-cta-wrap").classList.add("hidden");
+    populateFinalSummary();
+    document.getElementById("final-complete-summary").classList.remove("hidden");
+    speakThai("เสร็จสิ้นระบบทั้งหมดเรียบร้อยแล้วครับ");
     btn.disabled = false;
+  });
+
+  document.getElementById("btn-restart-workflow").addEventListener("click", () => {
+    appState.byMode[appState.activeMode] = createEmptyModeState();
+    restoreModeUI();
   });
 }
 
@@ -1117,13 +1278,11 @@ function bindInfoSettingsDialog() {
 
   openBtn.addEventListener("click", loadSettingsValues);
 
-  // Progressive fallback for browsers without Invoker Commands (commandfor)
   if (!("commandForElement" in HTMLButtonElement.prototype)) {
     openBtn.addEventListener("click", () => dialog.showModal());
     closeBtn.addEventListener("click", () => dialog.close());
   }
 
-  // Light-dismiss fallback when <dialog closedby="any"> is unavailable
   if (!("closedBy" in HTMLDialogElement.prototype)) {
     const isOutside = (e) => {
       const r = dialog.getBoundingClientRect();
@@ -1138,7 +1297,6 @@ function bindInfoSettingsDialog() {
     });
   }
 
-  // Mandatory reset of returnValue on close per modern-web-guidance dialog guide
   dialog.addEventListener("close", () => {
     dialog.returnValue = "";
   });

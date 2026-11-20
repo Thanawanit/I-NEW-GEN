@@ -51,12 +51,14 @@ class AppConfig:
     # Untouched Pi 5 remote base URL (e.g. "http://192.168.1.50:10000"); empty = local GPIO mode
     pi5_base_url: str = ""
 
-    # Reference soil bulk densities (g/cm^3)
+    # Reference soil bulk densities for Mae Hong Son (g/cm^3)
     bulk_density_map: dict[str, float] = field(
         default_factory=lambda: {
-            "sandy_loam": 1.45,
+            "sandy_loam": 1.55,
             "loam": 1.35,
-            "clay_loam": 1.25,
+            "clay_loam": 1.40,
+            "sandy_clay_loam": 1.45,
+            "clay": 1.25,
         }
     )
 

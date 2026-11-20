@@ -31,9 +31,9 @@ DATASET_CSV = DATA_DIR / "agronomic_rf_dataset.csv"
 MODEL_PATH = DATA_DIR / "rf_fertilizer_model.joblib"
 REPORT_PATH = DATA_DIR / "rf_evaluation_report.json"
 
-SAMPLES_PER_PROFILE = 1500
+SAMPLES_PER_PROFILE = 300
 STAGE_EXG_MEAN = {1: 35.0, 2: 60.0, 3: 55.0}
-BULK_DENSITIES = [1.25, 1.35, 1.45]
+BULK_DENSITIES = [1.25, 1.35, 1.40, 1.45, 1.55]
 # Simulation distributions anchored to verified Rice Department & LDD soil test thresholds:
 # - Rice Dept (files-rice-1749007694793.pdf & 1775720306069.pdf): pH 5.5-6.5; P <5 low, 5-10 mid, >10 high ppm;
 #   K <60 low, 60-80 mid, >80 high ppm; OM <1% low, 1-2% mid, >2% high
@@ -45,7 +45,7 @@ N_MEDIAN, N_SIGMA, N_RANGE = 12.0, 0.6, (2.0, 60.0)           # mg/kg available 
 MOISTURE_PADDY, MOISTURE_UPLAND = (21.5, 85.0), (15.0, 75.0)  # % ; paddy field test 21.5-27.2% up to saturated/flooded
 PADDY_CROPS = {"ข้าว"}
 TARGETS = ["deficit_n_g_m2", "deficit_p2o5_g_m2", "deficit_k2o_g_m2"]
-N_ESTIMATORS, MAX_DEPTH, MIN_LEAF, SEED = 120, 12, 2, 42
+N_ESTIMATORS, MAX_DEPTH, MIN_LEAF, SEED = 80, None, 2, 42
 
 
 def _lognormal(rng: np.random.Generator, median: float, sigma: float, bounds: tuple[float, float]) -> float:
@@ -148,7 +148,7 @@ def train_and_save() -> dict:
         "training_seconds": round(time.time() - started, 1),
     }
     REPORT_PATH.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    joblib.dump({"model": rf, "report": report}, MODEL_PATH)
+    joblib.dump({"model": rf, "report": report}, MODEL_PATH, compress=3)
     return report
 
 
