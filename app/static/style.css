@@ -255,19 +255,14 @@ body {
   border-color: var(--calc-bd);
 }
 
-/* Prominent Top Stage Status Box */
-.stage-status-box {
-  align-self: center;
-  background: var(--bg-surface);
-  border: 1.5px solid var(--accent-border);
-  border-radius: var(--radius-md);
-  padding: 12px 28px;
-  text-align: center;
-  box-shadow: 0 4px 14px rgba(26, 36, 29, 0.05);
+/* Top-Left Clean Stage Title Text (No Box) */
+.stage-status-label {
+  align-self: flex-start;
+  padding: 4px 2px 0;
 }
 
-.stage-status-box strong {
-  font-size: 21px;
+.stage-status-label strong {
+  font-size: 22px;
   font-weight: 700;
   color: var(--accent);
 }
@@ -1173,28 +1168,59 @@ progress#probe-progress-bar::-moz-progress-bar {
   line-height: 1;
 }
 
-/* Vertical N / P / K / Water breakdown + Vertical action buttons */
+/* Vertical N / P / K / Water Rows (No Boxes, Big Icons, Compact Alignment) */
 .channel-breakdown-col {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.ch-pill {
-  background: var(--bg-subtle);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 8px 14px;
-  font-size: 13.5px;
+.ch-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.ch-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.ch-n .ch-icon { background: var(--tank-n); }
+.ch-p .ch-icon { background: var(--tank-p); }
+.ch-k .ch-icon { background: var(--tank-k); }
+.ch-w .ch-icon { background: #0284c7; }
+
+.ch-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.ch-val {
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .dispense-actions-col {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  align-items: flex-start;
+}
+
+.dispense-next-row {
+  margin-top: 24px;
 }
 
 .bottle-stage {
@@ -1267,15 +1293,6 @@ progress#probe-progress-bar::-moz-progress-bar {
   text-align: center;
 }
 
-.final-complete-summary {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  padding-top: 8px;
-}
-
 .complete-banner {
   width: 100%;
   background: var(--live-bg);
@@ -1290,30 +1307,98 @@ progress#probe-progress-bar::-moz-progress-bar {
   font-size: 21px;
 }
 
-.summary-cards-grid {
+/* Separate Standalone Summary Card ("สรุป") */
+.final-summary-card {
   width: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.sum-card {
-  background: var(--bg-canvas);
+  max-width: 760px;
+  background: var(--bg-surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  padding: 24px 28px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 18px;
 }
 
-.sum-k {
-  font-size: 12px;
+.summary-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.summary-main-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.summary-rows-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sum-section-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sum-section-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.sum-svg-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sum-section-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sum-section-title {
+  font-size: 13px;
+  font-weight: 700;
   color: var(--text-muted);
 }
 
-.sum-card strong {
-  font-size: 14px;
+.sum-h-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+}
+
+.sum-h-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sum-h-item span {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.sum-h-item strong {
+  font-size: 14.5px;
   color: var(--text-primary);
 }
 

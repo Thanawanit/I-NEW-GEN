@@ -224,7 +224,8 @@ function restoreModeUI() {
   const finalDone = Boolean(s.finalDrone.done);
   document.getElementById("dock-concept-card").classList.toggle("hidden", !finalDone);
   document.getElementById("final-cta-wrap").classList.toggle("hidden", finalDone);
-  document.getElementById("final-complete-summary").classList.toggle("hidden", !finalDone);
+  document.getElementById("final-complete-banner").classList.toggle("hidden", !finalDone);
+  document.getElementById("final-summary-card").classList.toggle("hidden", !finalDone);
   if (finalDone) populateFinalSummary();
 
   goToStage(s.stage);
@@ -950,9 +951,9 @@ function updateBottleVisual(dispensedMl, totalMl = 1000) {
   const frac = clamped / safeTotal;
   const pct = frac * 100;
 
-  // Height of beaker inner clip = 214px (from y=42 to y=256)
-  const liquidH = 214 * frac;
-  const liquidY = 256 - liquidH;
+  // Normal Bottle liquid fill: bottom y=266 up 180px to 1000 ml mark (y=86)
+  const liquidH = 180 * frac;
+  const liquidY = 266 - liquidH;
 
   const rect = document.getElementById("beaker-liquid-rect");
   const meniscus = document.getElementById("beaker-meniscus");
@@ -1047,11 +1048,13 @@ function bindStage5() {
     const countdownBox = document.getElementById("countdown-banner");
     const countdownNum = document.getElementById("countdown-num");
     const statusText = document.getElementById("dispense-status-text");
-    const nextFinalBtn = document.getElementById("btn-goto-drone-final");
+    const stopBtn = document.getElementById("btn-stop-dispense");
+    const nextWrap = document.getElementById("dispense-next-wrap");
 
     liveSection.classList.remove("hidden");
     countdownBox.classList.remove("hidden");
-    nextFinalBtn.classList.add("hidden");
+    stopBtn.classList.remove("hidden");
+    nextWrap.classList.add("hidden");
     updateBottleVisual(0, 1000);
     liveSection.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -1100,7 +1103,8 @@ function bindStage5() {
             updateBottleVisual(hw.target_total_ml || totalBatch, hw.target_total_ml || totalBatch);
             s.mixer.dispensedDone = true;
             statusText.textContent = "จ่ายน้ำปุ๋ยครบ 1,000 ml เรียบร้อยแล้ว";
-            nextFinalBtn.classList.remove("hidden");
+            stopBtn.classList.add("hidden");
+            nextWrap.classList.remove("hidden");
           }
         }, 250);
       } else {
@@ -1124,7 +1128,8 @@ function bindStage5() {
             s.mixer.dispensedDone = true;
             statusText.textContent = "ผสมปุ๋ยน้ำชีวภาพครบ 1,000 ml เสร็จสิ้นแล้ว";
             speakThai("จ่ายน้ำปุ๋ยครบ 1,000 มิลลิลิตรแล้วครับ");
-            nextFinalBtn.classList.remove("hidden");
+            stopBtn.classList.add("hidden");
+            nextWrap.classList.remove("hidden");
           }
         }, 250);
       }
@@ -1158,34 +1163,34 @@ function bindStage5() {
 function populateFinalSummary() {
   const s = currentState();
   const area = s.plot.confirmedAreaM2 || 0;
-  document.getElementById("sum-plot-area").textContent =
-    `${s.plot.name || "แปลงสาธิต"} (${formatNum(area, 1)} ตร.ม.)`;
+  document.getElementById("sum-plot-name").textContent = s.plot.name || "แปลงสาธิต";
+  document.getElementById("sum-area-m2").textContent = `${formatNum(area, 1)} ตร.ม.`;
+  document.getElementById("sum-area-thai").textContent = areaM2ToThaiText(area).replace("เท่ากับ ", "");
 
-  const soilName = SOIL_LABELS[s.crop.soilType] || s.crop.soilType || "ดินร่วน";
-  document.getElementById("sum-crop-soil").textContent =
-    `${s.crop.cropName} • ${s.crop.variety} • ${s.crop.growthStage} • ${soilName}`;
+  document.getElementById("sum-crop-name").textContent = s.crop.cropName || "—";
+  document.getElementById("sum-crop-variety").textContent = s.crop.variety || "—";
+  document.getElementById("sum-crop-stage").textContent = s.crop.growthStage || "—";
+  document.getElementById("sum-soil-type").textContent = SOIL_LABELS[s.crop.soilType] || s.crop.soilType || "—";
 
   document.getElementById("sum-exg").textContent =
-    s.survey.greenPct !== null ? `${formatNum(s.survey.greenPct, 1)} %` : "—";
+    s.survey.greenPct !== null ? `${formatNum(s.survey.greenPct, 1)} %` : "— %";
 
   const avg = s.soil.avgSummary;
   const pts = (s.soil.points || []).filter((p) => p && p.n !== null);
-  if (avg) {
-    document.getElementById("sum-soil-avg").textContent =
-      `N ${formatNum(avg.n, 0)} / P ${formatNum(avg.p, 0)} / K ${formatNum(avg.k, 0)} mg/kg • pH ${formatNum(avg.ph, 1)} (${pts.length} จุด)`;
-  } else if (pts.length > 0) {
-    const p0 = pts[0];
-    document.getElementById("sum-soil-avg").textContent =
-      `N ${formatNum(p0.n, 0)} / P ${formatNum(p0.p, 0)} / K ${formatNum(p0.k, 0)} • pH ${formatNum(p0.ph, 1)}`;
-  } else {
-    document.getElementById("sum-soil-avg").textContent = "—";
-  }
+  const srcSoil = avg || (pts.length > 0 ? pts[0] : null);
+  document.getElementById("sum-soil-n").textContent = srcSoil ? formatNum(srcSoil.n, 0) : "—";
+  document.getElementById("sum-soil-p").textContent = srcSoil ? formatNum(srcSoil.p, 0) : "—";
+  document.getElementById("sum-soil-k").textContent = srcSoil ? formatNum(srcSoil.k, 0) : "—";
+  document.getElementById("sum-soil-ph").textContent = srcSoil ? formatNum(srcSoil.ph, 1) : "—";
 
   const vols = s.mixer.volumes || {};
   const sys = s.mixer.sysDeficit || {};
   const totDef = Number(sys.n || 0) + Number(sys.p2o5 || 0) + Number(sys.k2o || 0);
-  document.getElementById("sum-mix-plan").textContent =
-    `ขาดรวม ${totDef.toFixed(1)} g | N ${formatNum(vols.n, 0)} + P ${formatNum(vols.p, 0)} + K ${formatNum(vols.k, 0)} + น้ำ ${formatNum(vols.water, 0)} ml`;
+  document.getElementById("sum-deficit-tot").textContent = `${totDef.toFixed(1)} g`;
+  document.getElementById("sum-vol-n").textContent = `${formatNum(vols.n, 1)} ml`;
+  document.getElementById("sum-vol-p").textContent = `${formatNum(vols.p, 1)} ml`;
+  document.getElementById("sum-vol-k").textContent = `${formatNum(vols.k, 1)} ml`;
+  document.getElementById("sum-vol-w").textContent = `${formatNum(vols.water, 1)} ml`;
 }
 
 function bindStage6() {
@@ -1246,7 +1251,8 @@ function bindStage6() {
 
     document.getElementById("final-cta-wrap").classList.add("hidden");
     populateFinalSummary();
-    document.getElementById("final-complete-summary").classList.remove("hidden");
+    document.getElementById("final-complete-banner").classList.remove("hidden");
+    document.getElementById("final-summary-card").classList.remove("hidden");
     speakThai("เสร็จสิ้นระบบทั้งหมดเรียบร้อยแล้วครับ");
     btn.disabled = false;
   });
