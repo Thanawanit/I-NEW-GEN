@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
 APP_ROOT = Path(__file__).resolve().parent
 if str(APP_ROOT) not in sys.path:
@@ -1074,6 +1076,31 @@ def create_app(
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify(config_to_dict(updated))
+
+    @flask_app.get("/api/tts")
+    def generate_thai_tts() -> Any:
+        text = str(request.args.get("text") or "").strip()
+        if not text or len(text) > 300:
+            return jsonify({"error": "text is required (max 300 chars)"}), 400
+
+        cache_dir = APP_ROOT / "static" / "tts_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256(f"th-TH-NiwatNeural:{text}".encode("utf-8")).hexdigest()[:24]
+        mp3_path = cache_dir / f"{digest}.mp3"
+
+        if not mp3_path.exists():
+            try:
+                import edge_tts
+
+                async def _synthesize() -> None:
+                    comm = edge_tts.Communicate(text, "th-TH-NiwatNeural")
+                    await comm.save(str(mp3_path))
+
+                asyncio.run(_synthesize())
+            except Exception as exc:
+                return jsonify({"error": f"TTS unavailable: {exc}"}), 503
+
+        return send_file(mp3_path, mimetype="audio/mpeg")
 
     return flask_app
 

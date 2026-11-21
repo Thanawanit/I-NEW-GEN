@@ -86,6 +86,7 @@ function currentState() {
 
 let _speechResolve = null;
 let _preferredThaiVoice = null;
+let _ttsAudio = null;
 
 function resolvePreferredThaiVoice() {
   if (!("speechSynthesis" in window)) return null;
@@ -121,6 +122,13 @@ function stopSpeech() {
     _speechResolve = null;
     fn();
   }
+  if (_ttsAudio) {
+    try {
+      _ttsAudio.pause();
+      _ttsAudio.src = "";
+    } catch (_) {}
+    _ttsAudio = null;
+  }
   if ("speechSynthesis" in window) {
     try {
       window.speechSynthesis.cancel();
@@ -128,22 +136,47 @@ function stopSpeech() {
   }
 }
 
-function speakThai(text) {
-  if (!("speechSynthesis" in window) || !text) return;
+function _fallbackSpeechSynthesis(text, onDone) {
+  if (!("speechSynthesis" in window) || !text) {
+    if (onDone) onDone();
+    return;
+  }
   try {
-    stopSpeech();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "th-TH";
     const voice = resolvePreferredThaiVoice();
     if (voice) utter.voice = voice;
-    utter.rate = 1.02;
+    utter.rate = 1.0;
+    if (onDone) {
+      utter.onend = onDone;
+      utter.onerror = onDone;
+    }
     window.speechSynthesis.speak(utter);
-  } catch (_) {}
+  } catch (_) {
+    if (onDone) onDone();
+  }
+}
+
+function speakThai(text) {
+  if (!text) return;
+  stopSpeech();
+  try {
+    const audio = new Audio(`/api/tts?text=${encodeURIComponent(text)}`);
+    _ttsAudio = audio;
+    audio.onerror = () => {
+      if (_ttsAudio === audio) _fallbackSpeechSynthesis(text);
+    };
+    audio.play().catch(() => {
+      if (_ttsAudio === audio) _fallbackSpeechSynthesis(text);
+    });
+  } catch (_) {
+    _fallbackSpeechSynthesis(text);
+  }
 }
 
 function speakThaiAndWait(text, maxWaitMs = 7000) {
   return new Promise((resolve) => {
-    if (!("speechSynthesis" in window) || !text) {
+    if (!text) {
       resolve();
       return;
     }
@@ -156,19 +189,23 @@ function speakThaiAndWait(text, maxWaitMs = 7000) {
       resolve();
     };
     const timerId = setTimeout(finish, maxWaitMs);
+    stopSpeech();
+    _speechResolve = finish;
+
     try {
-      stopSpeech();
-      _speechResolve = finish;
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "th-TH";
-      const voice = resolvePreferredThaiVoice();
-      if (voice) utter.voice = voice;
-      utter.rate = 0.98;
-      utter.onend = finish;
-      utter.onerror = finish;
-      window.speechSynthesis.speak(utter);
+      const audio = new Audio(`/api/tts?text=${encodeURIComponent(text)}`);
+      _ttsAudio = audio;
+      audio.onended = finish;
+      audio.onerror = () => {
+        if (_ttsAudio === audio) _fallbackSpeechSynthesis(text, finish);
+        else finish();
+      };
+      audio.play().catch(() => {
+        if (_ttsAudio === audio) _fallbackSpeechSynthesis(text, finish);
+        else finish();
+      });
     } catch (_) {
-      finish();
+      _fallbackSpeechSynthesis(text, finish);
     }
   });
 }
