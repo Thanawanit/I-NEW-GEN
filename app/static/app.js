@@ -1201,6 +1201,7 @@ let _dispenseFlowToken = 0;
 
 function stopDispenseTimers() {
   _dispenseFlowToken += 1;
+  _bottlePouring = false;
   stopSpeech();
   if (_countdownTimer) {
     clearInterval(_countdownTimer);
@@ -1223,9 +1224,16 @@ function resetEmergencyStopButton() {
   }
 }
 
-function updateBottleVisual(dispensedMl, totalMl = 1000) {
+let _bottleAnimRaf = null;
+let _bottleCurrentMl = 0;
+let _bottleTargetMl = 0;
+let _bottleTotalMl = 1000;
+let _bottlePouring = false;
+let _wavePhase = 0;
+
+function _renderBottleGeometry(mlValue, totalMl, pouring, phase) {
   const safeTotal = totalMl > 0 ? totalMl : 1000;
-  const clamped = Math.max(0, Math.min(safeTotal, Number(dispensedMl || 0)));
+  const clamped = Math.max(0, Math.min(safeTotal, mlValue));
   const frac = clamped / safeTotal;
   const pct = frac * 100;
 
@@ -1233,19 +1241,94 @@ function updateBottleVisual(dispensedMl, totalMl = 1000) {
   const liquidH = 180 * frac;
   const liquidY = 266 - liquidH;
 
-  const rect = document.getElementById("beaker-liquid-rect");
-  const meniscus = document.getElementById("beaker-meniscus");
-  if (rect) {
-    rect.setAttribute("y", liquidY.toFixed(1));
-    rect.setAttribute("height", liquidH.toFixed(1));
+  const waveBack = document.getElementById("beaker-wave-back");
+  const waveFront = document.getElementById("beaker-wave-front");
+  const stream = document.getElementById("bottle-pour-stream");
+  const bubbles = document.getElementById("bottle-bubbles-group");
+
+  const amp = frac > 0.01 && frac < 0.995 ? (pouring ? 4.8 : 1.6) : 0;
+  const f1 = Math.sin(phase) * amp;
+  const f2 = Math.cos(phase * 1.3 + 1.2) * (amp * 0.85);
+
+  if (waveFront) {
+    if (liquidH <= 0.5) {
+      waveFront.setAttribute("d", "M 50 266 H 178 V 268 H 50 Z");
+    } else {
+      const yL = (liquidY + f1).toFixed(1);
+      const yC1 = (liquidY - f1 * 1.4).toFixed(1);
+      const yC2 = (liquidY + f1 * 1.4).toFixed(1);
+      const yR = (liquidY - f1).toFixed(1);
+      waveFront.setAttribute(
+        "d",
+        `M 50 ${yL} C 82 ${yC1}, 146 ${yC2}, 178 ${yR} V 268 H 50 Z`
+      );
+    }
   }
-  if (meniscus) {
-    meniscus.setAttribute("cy", liquidY.toFixed(1));
-    meniscus.setAttribute("opacity", frac > 0.01 ? "0.7" : "0");
+
+  if (waveBack) {
+    if (liquidH <= 0.5) {
+      waveBack.setAttribute("d", "M 50 266 H 178 V 268 H 50 Z");
+    } else {
+      const yL = (liquidY + f2 - 1.5).toFixed(1);
+      const yC1 = (liquidY + f2 * 1.3).toFixed(1);
+      const yC2 = (liquidY - f2 * 1.3).toFixed(1);
+      const yR = (liquidY - f2 - 1.5).toFixed(1);
+      waveBack.setAttribute(
+        "d",
+        `M 50 ${yL} C 86 ${yC1}, 142 ${yC2}, 178 ${yR} V 268 H 50 Z`
+      );
+    }
+  }
+
+  if (stream) {
+    const showStream = pouring && frac < 0.995;
+    stream.setAttribute("y2", Math.max(40, liquidY + 4).toFixed(1));
+    stream.setAttribute("opacity", showStream ? "0.78" : "0");
+  }
+
+  if (bubbles) {
+    bubbles.setAttribute("opacity", pouring && frac > 0.08 && frac < 0.995 ? "0.85" : "0");
   }
 
   document.getElementById("bottle-ml-text").textContent = `${clamped.toFixed(0)} / ${safeTotal.toFixed(0)} ml`;
   document.getElementById("bottle-pct-text").textContent = `${pct.toFixed(0)} / 100%`;
+}
+
+function _stepBottleAnimation() {
+  const diff = _bottleTargetMl - _bottleCurrentMl;
+  if (Math.abs(diff) > 0.25) {
+    _bottleCurrentMl += diff * 0.14;
+  } else {
+    _bottleCurrentMl = _bottleTargetMl;
+  }
+  _wavePhase += _bottlePouring ? 0.13 : 0.04;
+
+  _renderBottleGeometry(_bottleCurrentMl, _bottleTotalMl, _bottlePouring, _wavePhase);
+
+  const stillMoving = Math.abs(_bottleTargetMl - _bottleCurrentMl) > 0.25;
+  if (_bottlePouring || stillMoving) {
+    _bottleAnimRaf = requestAnimationFrame(_stepBottleAnimation);
+  } else {
+    _bottleAnimRaf = null;
+  }
+}
+
+function updateBottleVisual(dispensedMl, totalMl = 1000, pouring = null) {
+  _bottleTotalMl = totalMl > 0 ? totalMl : 1000;
+  _bottleTargetMl = Math.max(0, Math.min(_bottleTotalMl, Number(dispensedMl || 0)));
+
+  if (_bottleTargetMl === 0) {
+    _bottleCurrentMl = 0;
+  }
+  if (pouring !== null) {
+    _bottlePouring = Boolean(pouring);
+  } else {
+    _bottlePouring = _bottleTargetMl > 0 && _bottleTargetMl < _bottleTotalMl;
+  }
+
+  if (!_bottleAnimRaf) {
+    _bottleAnimRaf = requestAnimationFrame(_stepBottleAnimation);
+  }
 }
 
 function renderMixerComparison() {

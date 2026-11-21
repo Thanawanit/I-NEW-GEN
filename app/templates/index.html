@@ -509,8 +509,23 @@
 
                 <!-- Rising Animated Liquid Inside Bottle -->
                 <g clip-path="url(#bottle-inner-clip)">
-                  <rect id="beaker-liquid-rect" x="50" y="266" width="128" height="0" fill="url(#beaker-water-grad)" />
-                  <ellipse id="beaker-meniscus" cx="114" cy="266" rx="64" ry="4" fill="#68d391" opacity="0" />
+                  <!-- Pouring Stream from Neck -->
+                  <line id="bottle-pour-stream" class="bottle-pour-stream" x1="114" y1="34" x2="114" y2="266" stroke="#2f9e5b" stroke-width="5" stroke-linecap="round" opacity="0" />
+
+                  <!-- Back & Front Sloshing Wave Surfaces + Liquid Body -->
+                  <path id="beaker-wave-back" d="M 50 266 H 178 V 268 H 50 Z" fill="#68d391" opacity="0.55" />
+                  <path id="beaker-wave-front" d="M 50 266 H 178 V 268 H 50 Z" fill="url(#beaker-water-grad)" />
+
+                  <!-- Rising Micro-Bubbles During Dispense -->
+                  <g id="bottle-bubbles-group" opacity="0">
+                    <circle class="liquid-bubble b1" cx="84" cy="248" r="2.6" fill="#d1fae5" />
+                    <circle class="liquid-bubble b2" cx="112" cy="254" r="3.2" fill="#d1fae5" />
+                    <circle class="liquid-bubble b3" cx="142" cy="246" r="2.2" fill="#d1fae5" />
+                    <circle class="liquid-bubble b4" cx="98" cy="260" r="2.0" fill="#a7f3d0" />
+                  </g>
+
+                  <!-- Subtle Translucent Glass Specular Highlight -->
+                  <path d="M 62 86 V 248" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.32" />
                 </g>
 
                 <!-- 4 Calibrated Major Ticks ONLY (1000, 750, 500, 250 ml) -->

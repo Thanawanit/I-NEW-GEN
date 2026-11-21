@@ -1388,6 +1388,31 @@ progress#probe-progress-bar::-moz-progress-bar {
   color: var(--accent);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .bottle-pour-stream {
+    stroke-dasharray: 10 6;
+    animation: pour-flow 0.45s linear infinite;
+  }
+  .liquid-bubble {
+    animation: bubble-rise 1.6s ease-in infinite;
+  }
+  .liquid-bubble.b2 { animation-delay: 0.4s; animation-duration: 1.9s; }
+  .liquid-bubble.b3 { animation-delay: 0.85s; animation-duration: 1.5s; }
+  .liquid-bubble.b4 { animation-delay: 1.2s; animation-duration: 2.1s; }
+}
+
+@keyframes pour-flow {
+  from { stroke-dashoffset: 32; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes bubble-rise {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 0.75; }
+  85% { opacity: 0.5; }
+  100% { transform: translateY(-48px); opacity: 0; }
+}
+
 /* ==================== STAGE 6: ANIMATED DRONE SVG & COMPLETE SUMMARY ==================== */
 
 .drone-final-box {
