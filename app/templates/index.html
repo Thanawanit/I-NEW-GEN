@@ -766,9 +766,25 @@
               <input id="cfg-table-h" type="number" step="1" />
             </div>
             <div class="field-full dialog-actions">
+              <button id="btn-check-pi5" type="button" class="btn btn-secondary btn-sm">
+                ตรวจสอบการเชื่อมต่อ Pi 5 &amp; LoRa
+              </button>
               <button type="submit" class="btn btn-primary btn-sm">บันทึกการตั้งค่า</button>
             </div>
           </form>
+
+          <div id="pi5-check-result" class="hw-diag-box hidden" role="status"></div>
+
+          <div class="pump-test-panel">
+            <span class="pump-test-label">ทดสอบปั๊ม 4 ช่อง (เปิด 5 วินาที — วางแก้วตวงรองใต้หัวจ่ายเพื่อดู ml จริง):</span>
+            <div class="pump-test-row">
+              <button type="button" class="btn btn-secondary btn-sm btn-pump-test" data-pump="N">ทดสอบปั๊ม N (5s)</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-pump-test" data-pump="P">ทดสอบปั๊ม P (5s)</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-pump-test" data-pump="K">ทดสอบปั๊ม K (5s)</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-pump-test" data-pump="W">ทดสอบปั๊มน้ำ (5s)</button>
+            </div>
+            <div id="pump-test-result" class="hw-diag-box hidden" role="status"></div>
+          </div>
         </section>
 
         <section class="dialog-section">

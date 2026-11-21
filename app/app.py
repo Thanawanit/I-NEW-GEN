@@ -29,10 +29,12 @@ from config import (  # noqa: E402
     UPLOAD_DIR,
     config_to_dict,
     get_config,
+    normalize_pi5_base_url,
     update_config,
 )
 from database import get_connection, init_db  # noqa: E402
 from hardware_bridge import (  # noqa: E402
+    _http_json,
     fetch_remote_pi5_soil,
     force_stop_all_pumps,
     get_pump_hardware_status,
@@ -1076,6 +1078,87 @@ def create_app(
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify(config_to_dict(updated))
+
+    @flask_app.post("/api/pi5/check")
+    def check_pi5_connection() -> Any:
+        """Verify live connectivity to Pi 5 (:10000), LoRa receiver status, and latest soil values."""
+        data = request.get_json(silent=True) or {}
+        cfg = get_config(override_path)
+        raw_url = str(data.get("pi5_base_url") or cfg.pi5_base_url or "").strip()
+        pi5_url = normalize_pi5_base_url(raw_url)
+        if not pi5_url:
+            return jsonify({"ok": False, "error": "กรุณากรอก IP / URL ของ Raspberry Pi 5 ก่อนทดสอบ"}), 400
+        try:
+            remote = fetch_remote_pi5_soil(pi5_url)
+        except Exception as exc:
+            return jsonify({"ok": False, "pi5_base_url": pi5_url, "error": f"เชื่อมต่อ Pi 5 ไม่สำเร็จ: {exc}"}), 502
+
+        recorded_pts = [
+            pt for pt in (remote.get("recorded_points") or [])
+            if pt.get("N") not in (None, "-") and pt.get("P") not in (None, "-") and pt.get("K") not in (None, "-")
+        ]
+        return jsonify(
+            {
+                "ok": True,
+                "pi5_base_url": pi5_url,
+                "lora_connected": remote["lora_connected"],
+                "lora_rssi": remote["lora_rssi"],
+                "packet_count": remote["packet_count"],
+                "soil": remote["soil"],
+                "recorded_count": len(recorded_pts),
+            }
+        )
+
+    @flask_app.post("/api/pi5/pump-test")
+    def test_pi5_pump() -> Any:
+        """Trigger a short 0.5-15s pump priming/flow test on Pi 5 (:10000) or local GPIO."""
+        data = request.get_json(silent=True) or {}
+        pump_key = str(data.get("pump") or "").strip().upper()
+        if pump_key not in {"N", "P", "K", "W"}:
+            return jsonify({"ok": False, "error": "pump must be one of N, P, K, W"}), 400
+        try:
+            duration_s = max(0.5, min(15.0, float(data.get("duration_s") or 5.0)))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "Invalid duration_s"}), 400
+
+        cfg = get_config(override_path)
+        raw_url = str(data.get("pi5_base_url") or cfg.pi5_base_url or "").strip()
+        pi5_url = normalize_pi5_base_url(raw_url)
+        flow_map = {
+            "N": cfg.q_pump_n,
+            "P": cfg.q_pump_p,
+            "K": cfg.q_pump_k,
+            "W": cfg.q_pump_water,
+        }
+        expected_ml = round(flow_map[pump_key] * duration_s, 1)
+
+        if pi5_url:
+            try:
+                _http_json(
+                    f"{pi5_url}/api/pump_test",
+                    method="POST",
+                    payload={"pump": pump_key, "duration_s": duration_s},
+                    timeout_s=duration_s + 8.0,
+                )
+            except Exception as exc:
+                return jsonify({"ok": False, "error": f"สั่งปั๊ม {pump_key} บน Pi 5 ไม่สำเร็จ: {exc}"}), 502
+        else:
+            local_key = "water" if pump_key == "W" else pump_key.lower()
+            durations = {"n": 0.0, "p": 0.0, "k": 0.0, "water": 0.0}
+            durations[local_key] = duration_s
+            started = start_sequential_dispense(0, durations, volumes_ml={local_key: expected_ml})
+            if not started:
+                return jsonify({"ok": False, "error": "ปั๊มกำลังทำงานอยู่ กรุณารอสักครู่"}), 409
+
+        return jsonify(
+            {
+                "ok": True,
+                "pump": pump_key,
+                "duration_s": duration_s,
+                "expected_ml": expected_ml,
+                "target": pi5_url or "local_gpio",
+            }
+        )
 
     @flask_app.get("/api/tts")
     def generate_thai_tts() -> Any:

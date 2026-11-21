@@ -1736,6 +1736,54 @@ function bindInfoSettingsDialog() {
     });
     dialog.close();
   });
+
+  const checkBox = document.getElementById("pi5-check-result");
+  document.getElementById("btn-check-pi5").addEventListener("click", async () => {
+    const url = document.getElementById("cfg-pi5-url").value.trim();
+    checkBox.classList.remove("hidden", "is-ok", "is-err");
+    checkBox.textContent = "กำลังตรวจสอบการเชื่อมต่อ Raspberry Pi 5 และ LoRa...";
+    const res = await apiRequest("/api/pi5/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pi5_base_url: url }),
+    });
+    if (!res || !res.ok) {
+      checkBox.classList.add("is-err");
+      checkBox.textContent = res?.error || "เชื่อมต่อ Pi 5 ไม่สำเร็จ";
+      return;
+    }
+    checkBox.classList.add("is-ok");
+    const soil = res.soil || {};
+    const loraTxt = res.lora_connected ? `เชื่อมต่อแล้ว (RSSI: ${res.lora_rssi ?? "—"}, แพ็กเก็ต: ${res.packet_count})` : "ยังไม่พบแพ็กเก็ต LoRa (เช็ก Power Bank กล่องวัดดิน)";
+    checkBox.innerHTML =
+      `<strong>เชื่อมต่อ Pi 5 สำเร็จ (${res.pi5_base_url})</strong><br>` +
+      `LoRa: ${loraTxt}<br>` +
+      `ค่าล่าสุด: N=${soil.n ?? "—"} | P=${soil.p ?? "—"} | K=${soil.k ?? "—"} | pH=${soil.ph ?? "—"} (บันทึกแล้ว ${res.recorded_count || 0}/15 จุด)`;
+  });
+
+  const pumpBox = document.getElementById("pump-test-result");
+  document.querySelectorAll(".btn-pump-test").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const pump = btn.dataset.pump;
+      const url = document.getElementById("cfg-pi5-url").value.trim();
+      btn.disabled = true;
+      pumpBox.classList.remove("hidden", "is-ok", "is-err");
+      pumpBox.textContent = `กำลังสั่งเปิดปั๊ม ${pump} นาน 5 วินาที...`;
+      const res = await apiRequest("/api/pi5/pump-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pump, duration_s: 5, pi5_base_url: url }),
+      });
+      btn.disabled = false;
+      if (!res || !res.ok) {
+        pumpBox.classList.add("is-err");
+        pumpBox.textContent = res?.error || `ทดสอบปั๊ม ${pump} ไม่สำเร็จ`;
+        return;
+      }
+      pumpBox.classList.add("is-ok");
+      pumpBox.textContent = `ทดสอบปั๊ม ${pump} เสร็จสิ้น (5 วินาที) — ปริมาตรตามค่าสอบเทียบควรได้ ≈ ${res.expected_ml} ml (เทียบกับแก้วตวงจริง)`;
+    });
+  });
 }
 
 /* ==================== BOOTSTRAP ==================== */
