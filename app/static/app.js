@@ -1356,6 +1356,29 @@ function renderMixerComparison() {
     sufNote.classList.toggle("hidden", totalDeficit > 0);
   }
 
+  const alertBox = document.getElementById("ai-crosscheck-alert");
+  if (alertBox) {
+    const diffs = [
+      { label: "N", sVal: Number(sys.n || 0), rVal: Number(rfDefs.n || 0) },
+      { label: "P₂O₅", sVal: Number(sys.p2o5 || 0), rVal: Number(rfDefs.p2o5 || 0) },
+      { label: "K₂O", sVal: Number(sys.k2o || 0), rVal: Number(rfDefs.k2o || 0) },
+    ].filter((d) => {
+      const absDiff = Math.abs(d.sVal - d.rVal);
+      const base = Math.max(d.sVal, d.rVal, 1);
+      return absDiff >= 20 && absDiff / base >= 0.15;
+    });
+
+    alertBox.classList.remove("hidden", "is-warn", "is-ok");
+    if (diffs.length > 0) {
+      const names = diffs.map((d) => `${d.label} (ระบบ ${d.sVal.toFixed(1)} g vs AI ${d.rVal.toFixed(1)} g)`).join(", ");
+      alertBox.classList.add("is-warn");
+      alertBox.textContent = `ข้อสังเกตทวนสอบ AI (Cross-Check): พบค่าต่างจากสูตรสมดุลมวลในธาตุ ${names} — แนะนำให้ตรวจสอบค่า pH ดิน ความชื้น หรือความเขียวจากภาพโดรนเพิ่มเติม (การจ่ายปุ๋ยยังคงอ้างอิงสูตรสมดุลมวล)`;
+    } else {
+      alertBox.classList.add("is-ok");
+      alertBox.textContent = "ผลทวนสอบจาก AI สอดคล้องกับสูตรสมดุลมวล (ระบบจ่ายปุ๋ยตามสูตรสมดุลมวล)";
+    }
+  }
+
   const vols = s.mixer.volumes || {};
   document.getElementById("ch-n-ml").textContent = `${formatNum(vols.n, 1)} ml`;
   document.getElementById("ch-p-ml").textContent = `${formatNum(vols.p, 1)} ml`;

@@ -1270,6 +1270,36 @@ progress#probe-progress-bar::-moz-progress-bar {
   text-align: center;
 }
 
+.tank-group-primary {
+  border-color: var(--accent-border);
+}
+
+.tank-group-crosscheck {
+  border-style: dashed;
+}
+
+.ai-crosscheck-alert {
+  margin-top: 4px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  max-width: 560px;
+}
+
+.ai-crosscheck-alert.is-warn {
+  background: var(--sim-bg);
+  border: 1px solid var(--sim-bd);
+  color: var(--sim-fg);
+}
+
+.ai-crosscheck-alert.is-ok {
+  background: var(--calc-bg);
+  border: 1px solid var(--calc-bd);
+  color: var(--calc-fg);
+}
+
 .dispense-cta-zone {
   display: flex;
   justify-content: center;

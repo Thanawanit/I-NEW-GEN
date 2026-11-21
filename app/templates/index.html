@@ -332,16 +332,16 @@
 
         <div id="calc-comparison-wrap" class="calc-comparison-wrap hidden">
           <div class="deficit-banner">
-            <strong>สรุปปริมาณธาตุอาหาร N, P, K ที่ดินขาดและต้องเติมเพิ่ม</strong>
-            <span>เปรียบเทียบค่าระหว่างสูตรคำนวณของระบบกับโมเดล Random Forest (AI)</span>
+            <strong>สรุปปริมาณธาตุอาหาร N, P₂O₅, K₂O ที่ดินขาดและต้องเติมเพิ่ม</strong>
+            <span>สูตรสมดุลมวลเป็นตัวกำหนดปริมาณปุ๋ยจริง — โมเดล Random Forest (AI) ใช้สำหรับวิเคราะห์และทวนสอบผล (Cross-Check) เท่านั้น</span>
           </div>
 
           <hr class="thin-divider" />
 
           <div class="dual-tank-arena">
-            <!-- Left Side: System Formula -->
-            <div class="tank-group-card">
-              <div class="tank-group-title">ค่าที่ระบบคำนวณได้ (สูตรสมดุลมวล)</div>
+            <!-- Left Side: System Formula (Primary Dose Controller) -->
+            <div class="tank-group-card tank-group-primary">
+              <div class="tank-group-title">ค่าที่ระบบคำนวณได้ (สูตรสมดุลมวล • กำหนดปริมาณปุ๋ยจริง)</div>
               <div class="three-tanks">
                 <div class="chem-tank tank-n">
                   <span class="tank-badge">N</span>
@@ -349,30 +349,30 @@
                     <div class="tank-liquid"></div>
                     <strong id="sys-n-val" class="tank-reading tabular-num">— g</strong>
                   </div>
-                  <span class="tank-sub">ไนโตรเจน</span>
+                  <span class="tank-sub">ไนโตรเจน (N)</span>
                 </div>
                 <div class="chem-tank tank-p">
-                  <span class="tank-badge">P</span>
+                  <span class="tank-badge">P₂O₅</span>
                   <div class="tank-body">
                     <div class="tank-liquid"></div>
                     <strong id="sys-p-val" class="tank-reading tabular-num">— g</strong>
                   </div>
-                  <span class="tank-sub">ฟอสฟอรัส</span>
+                  <span class="tank-sub">ฟอสฟอรัส (P₂O₅)</span>
                 </div>
                 <div class="chem-tank tank-k">
-                  <span class="tank-badge">K</span>
+                  <span class="tank-badge">K₂O</span>
                   <div class="tank-body">
                     <div class="tank-liquid"></div>
                     <strong id="sys-k-val" class="tank-reading tabular-num">— g</strong>
                   </div>
-                  <span class="tank-sub">โพแทสเซียม</span>
+                  <span class="tank-sub">โพแทสเซียม (K₂O)</span>
                 </div>
               </div>
             </div>
 
-            <!-- Right Side: Random Forest AI -->
-            <div class="tank-group-card">
-              <div class="tank-group-title">ค่าจากโมเดล Random Forest (AI)</div>
+            <!-- Right Side: Random Forest AI (Analysis & Cross-Check Only) -->
+            <div class="tank-group-card tank-group-crosscheck">
+              <div class="tank-group-title">ผลวิเคราะห์จาก AI (Random Forest • ทวนสอบผล ไม่ใช่ตัวกำหนดปุ๋ย)</div>
               <div class="three-tanks">
                 <div class="chem-tank tank-n">
                   <span class="tank-badge">N</span>
@@ -380,37 +380,33 @@
                     <div class="tank-liquid"></div>
                     <strong id="rf-n-val" class="tank-reading tabular-num">— g</strong>
                   </div>
-                  <span class="tank-sub">ไนโตรเจน</span>
+                  <span class="tank-sub">ไนโตรเจน (N)</span>
                 </div>
                 <div class="chem-tank tank-p">
-                  <span class="tank-badge">P</span>
+                  <span class="tank-badge">P₂O₅</span>
                   <div class="tank-body">
                     <div class="tank-liquid"></div>
                     <strong id="rf-p-val" class="tank-reading tabular-num">— g</strong>
                   </div>
-                  <span class="tank-sub">ฟอสฟอรัส</span>
+                  <span class="tank-sub">ฟอสฟอรัส (P₂O₅)</span>
                 </div>
                 <div class="chem-tank tank-k">
-                  <span class="tank-badge">K</span>
+                  <span class="tank-badge">K₂O</span>
                   <div class="tank-body">
                     <div class="tank-liquid"></div>
                     <strong id="rf-k-val" class="tank-reading tabular-num">— g</strong>
                   </div>
-                  <span class="tank-sub">โพแทสเซียม</span>
+                  <span class="tank-sub">โพแทสเซียม (K₂O)</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Convergence SVG Lines + 2-Row Summary Pill (Row 1: Total Deficit Big, Row 2: R2 & MAE) -->
+          <!-- Summary Pill (Based on Mass Balance) + AI Cross-Check Observation -->
           <div class="convergence-zone">
-            <svg class="convergence-svg" viewBox="0 0 600 84" preserveAspectRatio="none" aria-hidden="true">
-              <path d="M 140 0 C 140 48, 290 36, 300 82" fill="none" stroke="var(--accent)" stroke-width="2.5" />
-              <path d="M 460 0 C 460 48, 310 36, 300 82" fill="none" stroke="var(--calc-fg)" stroke-width="2.5" />
-            </svg>
             <div class="convergence-summary-pill">
               <div class="conv-row-primary">
-                <span>ขาดธาตุอาหารรวม</span>
+                <span>ขาดธาตุอาหารรวม (ตามสูตรสมดุลมวล)</span>
                 <strong id="conv-total-deficit" class="tabular-num">— g</strong>
               </div>
               <div class="conv-row-secondary">
@@ -427,6 +423,7 @@
               <p id="calc-sufficient-note" class="calc-sufficient-note hidden">
                 ดินในแปลงมีธาตุอาหารเพียงพอตามเกณฑ์ของระยะเติบโตนี้แล้ว (ไม่ต้องเติมปุ๋ยเพิ่ม)
               </p>
+              <div id="ai-crosscheck-alert" class="ai-crosscheck-alert hidden" role="status"></div>
             </div>
           </div>
 
