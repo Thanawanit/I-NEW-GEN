@@ -157,11 +157,41 @@ function _fallbackSpeechSynthesis(text, onDone) {
   }
 }
 
+const STATIC_AUDIO_CLIPS = {
+  "เริ่มปักลงบนดินได้": "/static/audio/start_probe.wav",
+  "ตรวจครบ 15 ครั้งเสร็จสิ้น": "/static/audio/measure_complete.wav",
+  "หยุดการตรวจวัดดินแล้ว": "/static/audio/measure_stopped.wav",
+  "กรุณานำกระบอกผสมมาวางใต้หัวจ่าย": "/static/audio/place_cup.wav",
+  "ระบบกำลังจะปล่อยน้ำปุ๋ยผสมลงกระบอกในอีก": "/static/audio/dispense_preparing.wav",
+  "เริ่มจ่ายน้ำปุ๋ยครับ": "/static/audio/dispense_start.wav",
+  "จ่ายน้ำปุ๋ยครบ 1,000 มิลลิลิตรแล้วครับ": "/static/audio/dispense_done.wav",
+  "เสร็จสิ้นระบบทั้งหมดเรียบร้อยแล้วครับ": "/static/audio/all_finished.wav",
+};
+
+function resolveAudioUrl(text) {
+  const clean = String(text || "").trim();
+  if (STATIC_AUDIO_CLIPS[clean]) return STATIC_AUDIO_CLIPS[clean];
+
+  const roundMatch = clean.match(/^ตรวจครั้งที่\s*(\d+)\s*เสร็จสิ้น/);
+  if (roundMatch) {
+    const roundNum = Number(roundMatch[1]);
+    if (roundNum >= 1 && roundNum <= 14) {
+      return `/static/audio/round_${roundNum}.wav`;
+    }
+  }
+
+  if (/^(10|[1-9])$/.test(clean)) {
+    return `/static/audio/count_${clean}.wav`;
+  }
+
+  return `/api/tts?text=${encodeURIComponent(clean)}`;
+}
+
 function speakThai(text) {
   if (!text) return;
   stopSpeech();
   try {
-    const audio = new Audio(`/api/tts?text=${encodeURIComponent(text)}`);
+    const audio = new Audio(resolveAudioUrl(text));
     _ttsAudio = audio;
     audio.onerror = () => {
       if (_ttsAudio === audio) _fallbackSpeechSynthesis(text);
@@ -193,7 +223,7 @@ function speakThaiAndWait(text, maxWaitMs = 7000) {
     _speechResolve = finish;
 
     try {
-      const audio = new Audio(`/api/tts?text=${encodeURIComponent(text)}`);
+      const audio = new Audio(resolveAudioUrl(text));
       _ttsAudio = audio;
       audio.onended = finish;
       audio.onerror = () => {
