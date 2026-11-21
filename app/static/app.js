@@ -85,6 +85,35 @@ function currentState() {
 }
 
 let _speechResolve = null;
+let _preferredThaiVoice = null;
+
+function resolvePreferredThaiVoice() {
+  if (!("speechSynthesis" in window)) return null;
+  const voices = window.speechSynthesis.getVoices() || [];
+  if (!voices.length) return _preferredThaiVoice;
+
+  const niwat = voices.find(
+    (v) =>
+      /niwat/i.test(v.name || "") ||
+      /niwat/i.test(v.voiceURI || "") ||
+      /th-th-niwatneural/i.test(v.name || "")
+  );
+  if (niwat) {
+    _preferredThaiVoice = niwat;
+    return niwat;
+  }
+
+  const anyThai = voices.find((v) => (v.lang || "").toLowerCase().startsWith("th"));
+  _preferredThaiVoice = anyThai || null;
+  return _preferredThaiVoice;
+}
+
+if ("speechSynthesis" in window) {
+  resolvePreferredThaiVoice();
+  if ("onvoiceschanged" in window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = resolvePreferredThaiVoice;
+  }
+}
 
 function stopSpeech() {
   if (_speechResolve) {
@@ -105,6 +134,8 @@ function speakThai(text) {
     stopSpeech();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "th-TH";
+    const voice = resolvePreferredThaiVoice();
+    if (voice) utter.voice = voice;
     utter.rate = 1.02;
     window.speechSynthesis.speak(utter);
   } catch (_) {}
@@ -130,6 +161,8 @@ function speakThaiAndWait(text, maxWaitMs = 7000) {
       _speechResolve = finish;
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "th-TH";
+      const voice = resolvePreferredThaiVoice();
+      if (voice) utter.voice = voice;
       utter.rate = 0.98;
       utter.onend = finish;
       utter.onerror = finish;
