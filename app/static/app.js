@@ -1042,10 +1042,13 @@ function bindStage3() {
 let _probeTimer = null;
 let _probeRunning = false;
 
+let _lastRenderedProbeCount = 0;
+
 function renderProbeCards(pointsList) {
   const validPts = (pointsList || []).filter((p) => p && p.n !== null);
   const grid = document.getElementById("probe-cards-grid");
   const progressWrap = document.getElementById("probe-progress-wrap");
+  const liveAnim = document.getElementById("probe-live-anim");
   const bar = document.getElementById("probe-progress-bar");
   const countText = document.getElementById("probe-count-text");
   const confirmWrap = document.getElementById("probe-confirm-wrap");
@@ -1055,28 +1058,41 @@ function renderProbeCards(pointsList) {
   } else {
     progressWrap.classList.add("hidden");
   }
+  if (liveAnim) {
+    liveAnim.classList.toggle("hidden", !_probeRunning);
+  }
 
   bar.value = validPts.length;
   countText.textContent = `ปักแล้ว ${validPts.length} ครั้ง`;
   confirmWrap.classList.toggle("hidden", validPts.length === 0 || _probeRunning);
 
+  const prevCount = _lastRenderedProbeCount;
+  _lastRenderedProbeCount = validPts.length;
+
   grid.innerHTML = "";
-  validPts.forEach((pt) => {
+  validPts.forEach((pt, idx) => {
     const card = document.createElement("div");
-    card.className = "sensor-probe-card";
+    card.className = idx >= prevCount ? "sensor-probe-card is-new" : "sensor-probe-card";
     card.innerHTML = `
-      <div class="sensor-body">
-        <div class="sensor-head-tag">
-          <span>หัววัดดิน • จุดที่ ${pt.point_index}</span>
-          <span>5-PIN</span>
+      <div class="sensor-acrylic-shell">
+        <div class="sensor-power-strip">
+          <span class="sensor-yellow-pack" aria-hidden="true"></span>
+          <span class="sensor-point-pill">จุดที่ ${pt.point_index}</span>
         </div>
-        <div class="sensor-metrics">
-          <div class="sensor-metric"><span>N</span><strong class="tabular-num">${formatNum(pt.n, 0)}</strong></div>
-          <div class="sensor-metric"><span>P</span><strong class="tabular-num">${formatNum(pt.p, 0)}</strong></div>
-          <div class="sensor-metric"><span>K</span><strong class="tabular-num">${formatNum(pt.k, 0)}</strong></div>
-          <div class="sensor-metric"><span>pH</span><strong class="tabular-num">${formatNum(pt.ph, 1)}</strong></div>
+        <div class="sensor-body">
+          <div class="sensor-head-tag">
+            <span>5-PIN SOIL</span>
+            <span>NPK•pH</span>
+          </div>
+          <div class="sensor-metrics">
+            <div class="sensor-metric"><span>N</span><strong class="tabular-num">${formatNum(pt.n, 0)}</strong></div>
+            <div class="sensor-metric"><span>P</span><strong class="tabular-num">${formatNum(pt.p, 0)}</strong></div>
+            <div class="sensor-metric"><span>K</span><strong class="tabular-num">${formatNum(pt.k, 0)}</strong></div>
+            <div class="sensor-metric"><span>pH</span><strong class="tabular-num">${formatNum(pt.ph, 1)}</strong></div>
+          </div>
         </div>
       </div>
+      <div class="sensor-baseplate" aria-hidden="true"></div>
       <div class="sensor-prongs" aria-hidden="true">
         <span></span><span></span><span></span><span></span><span></span>
       </div>
