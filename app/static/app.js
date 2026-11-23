@@ -569,7 +569,7 @@ function initStage1Map() {
 
   L.tileLayer(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    { maxZoom: 20, attribution: "Esri World Imagery" }
+    { maxNativeZoom: 17, maxZoom: 21, attribution: "Esri World Imagery" }
   ).addTo(mapInstance);
 
   drawnItems = new L.FeatureGroup();
