@@ -235,6 +235,7 @@
         <div class="survey-stage-box">
           <div id="survey-launch-wrap" class="clean-center-box survey-launch-spaced">
             <h2 class="survey-big-heading">สำรวจความเขียวของแปลงด้วยโดรน</h2>
+            <p class="fallback-msg">การตรวจสุขภาพทรงพุ่มเบื้องต้นเพื่อส่งให้ AI ทวนสอบ (ไม่มีผลเปลี่ยนปริมาณปุ๋ยที่จ่ายจริง)</p>
             <p id="survey-live-fallback-msg" class="fallback-msg hidden">
               ยังไม่ได้เชื่อมต่อ SDK โดรน Wi-Fi อัตโนมัติ — กด "เพิ่มรูปภาพ" ด้านล่างเพื่อวิเคราะห์ความเขียวแทนได้ทันที
             </p>
@@ -247,6 +248,9 @@
               </label>
               <input id="input-survey-image" type="file" accept="image/*" class="visually-hidden" />
             </div>
+            <button id="btn-survey-skip" type="button" class="btn btn-ghost btn-sm">
+              ข้ามขั้นตอนนี้ (ไปตรวจวัดดินเลย)
+            </button>
           </div>
 
           <div id="survey-status-wrap" class="live-status-pill hidden" role="status">

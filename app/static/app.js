@@ -1030,6 +1030,11 @@ function bindStage3() {
   });
 
   document.getElementById("btn-survey-accept").addEventListener("click", () => goToStage(4));
+  document.getElementById("btn-survey-skip").addEventListener("click", () => {
+    const s = currentState();
+    s.survey = { origUrl: "", maskUrl: "", greenPct: null, done: false };
+    goToStage(4);
+  });
 }
 
 /* ==================== STAGE 4: AUTO 1-15 SOIL PROBING + 5-PRONG SENSOR CARDS ==================== */
