@@ -1047,11 +1047,14 @@ progress#probe-progress-bar::-moz-progress-bar {
 .probe-cards-grid {
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(134px, 1fr));
+  gap: 12px;
+  justify-items: center;
 }
 
 .sensor-probe-card {
+  width: 100%;
+  max-width: 138px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1062,11 +1065,11 @@ progress#probe-progress-bar::-moz-progress-bar {
   width: 100%;
   background: linear-gradient(180deg, rgba(239, 246, 255, 0.95) 0%, rgba(255, 255, 255, 0.96) 100%);
   border: 2px solid #3b82f6;
-  border-radius: 11px 11px 4px 4px;
-  padding: 7px 7px 6px;
+  border-radius: 10px 10px 4px 4px;
+  padding: 6px 5px 5px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.10);
 }
 
@@ -1078,15 +1081,15 @@ progress#probe-progress-bar::-moz-progress-bar {
 }
 
 .sensor-yellow-pack {
-  width: 34px;
-  height: 9px;
-  border-radius: 3px;
+  width: 28px;
+  height: 8px;
+  border-radius: 2.5px;
   background: linear-gradient(90deg, #f59e0b, #fbbf24);
   border: 1px solid #d97706;
 }
 
 .sensor-point-pill {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #1d4ed8;
 }
@@ -1095,7 +1098,7 @@ progress#probe-progress-bar::-moz-progress-bar {
   width: 100%;
   background: #171b20;
   color: #f8fafc;
-  border-radius: 8px;
+  border-radius: 7px;
   overflow: hidden;
   border: 1px solid #0f172a;
   display: flex;
@@ -1106,25 +1109,25 @@ progress#probe-progress-bar::-moz-progress-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 8px;
+  padding: 4px 7px;
   background: #1d4ed8;
-  font-size: 11px;
+  font-size: 10px;
   color: #ffffff;
   font-weight: 700;
 }
 
 .sensor-metrics {
-  padding: 8px;
+  padding: 6px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
-  font-size: 12.5px;
+  gap: 4px;
+  font-size: 11.5px;
 }
 
 .sensor-metric {
   background: rgba(255, 255, 255, 0.08);
-  padding: 4px 6px;
-  border-radius: 5px;
+  padding: 3px 5px;
+  border-radius: 4px;
   display: flex;
   justify-content: space-between;
 }
@@ -1140,12 +1143,12 @@ progress#probe-progress-bar::-moz-progress-bar {
 .sensor-prongs {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 7px;
 }
 
 .sensor-prongs span {
-  width: 4.5px;
-  height: 24px;
+  width: 4px;
+  height: 28px;
   background: linear-gradient(90deg, #94a3b8 0%, #f1f5f9 50%, #64748b 100%);
   clip-path: polygon(0 0, 100% 0, 100% 80%, 50% 100%, 0 80%);
 }
