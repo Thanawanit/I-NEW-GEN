@@ -317,17 +317,6 @@ function setOperationalMode(mode) {
   document.getElementById("btn-mode-sim").classList.toggle("is-active", isSim);
   document.getElementById("btn-mode-live").classList.toggle("is-active", !isSim);
 
-  const strip = document.getElementById("mode-strip");
-  const badge = document.getElementById("mode-strip-badge");
-  const text = document.getElementById("mode-strip-text");
-  strip.classList.toggle("is-sim", isSim);
-  strip.classList.toggle("is-live", !isSim);
-  badge.className = `badge ${isSim ? "badge-simulated" : "badge-live"}`;
-  badge.textContent = isSim ? "SIMULATED" : "LIVE HARDWARE";
-  text.textContent = isSim
-    ? "โหมดทดสอบจำลอง — ข้อมูลทั้งหมดแยกจากโหมดอุปกรณ์จริง 100%"
-    : "โหมดอุปกรณ์จริง — เชื่อมต่อกล่องวัดดิน LoRa และเครื่องจ่ายปุ๋ย Raspberry Pi 5";
-
   restoreModeUI();
 }
 
@@ -1625,13 +1614,247 @@ function populateFinalSummary() {
   document.getElementById("sum-vol-w").textContent = `${formatNum(vols.water, 1)} ml`;
 }
 
+let _droneAnimRaf = null;
+
+function _stopDroneAnimation() {
+  if (_droneAnimRaf) {
+    cancelAnimationFrame(_droneAnimRaf);
+    _droneAnimRaf = null;
+  }
+}
+
+function _createDroneSceneController() {
+  const droneEl = document.getElementById("svg-drone-group");
+  const shadowEl = document.getElementById("svg-drone-shadow");
+  const sprayLayerEl = document.getElementById("svg-spray-layer");
+  const sprayDropEls = Array.from(document.querySelectorAll("#svg-spray-drops .spray-drop"));
+  const streamGroupEl = document.getElementById("svg-refill-stream-group");
+  const valveEl = document.getElementById("svg-tap-valve");
+  const podLiquidEl = document.getElementById("svg-pod-liquid");
+  const supplyLiquidEl = document.getElementById("svg-supply-liquid");
+  const supplySurfaceEl = document.getElementById("svg-supply-surface");
+  const downwashEl = document.getElementById("svg-downwash-ring");
+  const rotorL = document.getElementById("rotor-l");
+  const rotorR = document.getElementById("rotor-r");
+  const rotorML = document.getElementById("rotor-ml");
+  const rotorMR = document.getElementById("rotor-mr");
+  const blurL = document.getElementById("rotor-blur-l");
+  const blurR = document.getElementById("rotor-blur-r");
+  const blurML = document.getElementById("rotor-blur-ml");
+  const blurMR = document.getElementById("rotor-blur-mr");
+  const ledL = document.getElementById("drone-led-l");
+  const ledR = document.getElementById("drone-led-r");
+  const cropPlants = Array.from(document.querySelectorAll("#svg-crop-field .crop-plant"));
+  const cropDews = Array.from(document.querySelectorAll("#svg-crop-field .crop-dew"));
+
+  const PAD_X = 178;
+  const PAD_Y = 152;
+  const GROUND_Y = 183;
+
+  // Per-droplet seeds for organic spray particles
+  const dropSeeds = sprayDropEls.map((_, idx) => ({
+    nozzle: idx % 2 === 0 ? -18 : 18,
+    phase: (idx / sprayDropEls.length),
+    spread: ((idx * 37) % 24) - 12,
+    speed: 0.9 + ((idx * 19) % 5) * 0.14,
+  }));
+
+  const state = {
+    x: PAD_X,
+    y: PAD_Y,
+    vx: 0,
+    pitch: 0,
+    rotorSpeed: 0, // 0..1
+    rotorPhase: 0,
+    spray: 0, // 0..1
+    podLevel: 0, // 0..1
+    supplyDrop: 0, // 0..1
+    valveOpen: false,
+    hydrated: 0, // 0..1
+  };
+
+  function render(nowSec) {
+    const altitude = Math.max(0, PAD_Y - state.y); // 0 on pad, ~75 at cruise
+    const hoverBob = altitude > 2 ? Math.sin(nowSec * 5.2) * 1.8 : 0;
+    const drawY = state.y + hoverBob;
+
+    // Drone body position + realistic banking pitch
+    droneEl.setAttribute(
+      "transform",
+      `translate(${state.x.toFixed(2)}, ${drawY.toFixed(2)}) rotate(${state.pitch.toFixed(2)})`
+    );
+
+    // Dynamic ground shadow scales & fades with altitude
+    const altFactor = Math.min(1, altitude / 95);
+    const shadowRx = 34 - altFactor * 14;
+    const shadowRy = 5.5 - altFactor * 2.2;
+    const shadowOpacity = 0.28 - altFactor * 0.16;
+    shadowEl.setAttribute("cx", state.x.toFixed(2));
+    shadowEl.setAttribute("rx", shadowRx.toFixed(2));
+    shadowEl.setAttribute("ry", shadowRy.toFixed(2));
+    shadowEl.setAttribute("opacity", shadowOpacity.toFixed(3));
+
+    // Downwash air ripple when hovering near pad or ground
+    if (state.rotorSpeed > 0.35 && altitude < 55) {
+      const pulse = (nowSec * 2.6) % 1;
+      const ringRx = 22 + pulse * 30;
+      const ringRy = 4 + pulse * 4;
+      const ringOp = (1 - pulse) * 0.55 * state.rotorSpeed * (1 - altitude / 60);
+      downwashEl.setAttribute("cx", state.x.toFixed(2));
+      downwashEl.setAttribute("cy", GROUND_Y.toFixed(1));
+      downwashEl.setAttribute("rx", ringRx.toFixed(1));
+      downwashEl.setAttribute("ry", ringRy.toFixed(1));
+      downwashEl.setAttribute("opacity", Math.max(0, ringOp).toFixed(3));
+    } else {
+      downwashEl.setAttribute("opacity", "0");
+    }
+
+    // Spinning rotor blades + motion blur discs
+    state.rotorPhase += state.rotorSpeed * 0.72;
+    const bladeCos = Math.cos(state.rotorPhase * 6.283);
+    const bladeCos2 = Math.cos((state.rotorPhase + 0.35) * 6.283);
+    const halfMain = 4 + Math.abs(bladeCos) * 16;
+    const halfMid = 3 + Math.abs(bladeCos2) * 10;
+
+    rotorL.setAttribute("x1", (-42 - halfMain).toFixed(1));
+    rotorL.setAttribute("x2", (-42 + halfMain).toFixed(1));
+    rotorR.setAttribute("x1", (42 - halfMain).toFixed(1));
+    rotorR.setAttribute("x2", (42 + halfMain).toFixed(1));
+    rotorML.setAttribute("x1", (-29 - halfMid).toFixed(1));
+    rotorML.setAttribute("x2", (-29 + halfMid).toFixed(1));
+    rotorMR.setAttribute("x1", (29 - halfMid).toFixed(1));
+    rotorMR.setAttribute("x2", (29 + halfMid).toFixed(1));
+
+    const blurOp = Math.max(0, (state.rotorSpeed - 0.25) / 0.75) * 0.85;
+    blurL.setAttribute("opacity", blurOp.toFixed(3));
+    blurR.setAttribute("opacity", blurOp.toFixed(3));
+    blurML.setAttribute("opacity", (blurOp * 0.75).toFixed(3));
+    blurMR.setAttribute("opacity", (blurOp * 0.75).toFixed(3));
+
+    // Navigation LED strobe
+    const blinkOn = Math.sin(nowSec * 7.5) > -0.2;
+    ledL.setAttribute("opacity", state.rotorSpeed > 0.05 ? (blinkOn ? "1" : "0.3") : "0.45");
+    ledR.setAttribute("opacity", state.rotorSpeed > 0.05 ? (blinkOn ? "1" : "0.3") : "0.45");
+
+    // Solenoid valve & refill stream
+    valveEl.setAttribute("fill", state.valveOpen ? "#22c55e" : "#f59e0b");
+    streamGroupEl.setAttribute("opacity", state.valveOpen ? "0.95" : "0");
+
+    // Belly pod liquid level (y from 28 empty -> 13 full, height 0 -> 15)
+    const podH = Math.max(0, Math.min(15, state.podLevel * 15));
+    podLiquidEl.setAttribute("y", (28 - podH).toFixed(2));
+    podLiquidEl.setAttribute("height", podH.toFixed(2));
+
+    // Supply tank liquid level slightly drops during refill
+    const supY = 72 + state.supplyDrop * 12;
+    const supH = 100 - state.supplyDrop * 12;
+    supplyLiquidEl.setAttribute("y", supY.toFixed(2));
+    supplyLiquidEl.setAttribute("height", supH.toFixed(2));
+    supplySurfaceEl.setAttribute("cy", supY.toFixed(2));
+
+    // Spray mist cone + drifting droplets
+    if (state.spray > 0.02) {
+      sprayLayerEl.setAttribute("opacity", state.spray.toFixed(3));
+      sprayLayerEl.setAttribute(
+        "transform",
+        `translate(${state.x.toFixed(2)}, ${drawY.toFixed(2)})`
+      );
+      const driftX = -state.vx * 0.12;
+      dropSeeds.forEach((seed, idx) => {
+        const el = sprayDropEls[idx];
+        const t = (nowSec * 1.75 * seed.speed + seed.phase) % 1;
+        const dx = seed.nozzle + seed.spread * t + driftX * t;
+        const dy = 29 + t * 68;
+        el.setAttribute("cx", dx.toFixed(1));
+        el.setAttribute("cy", dy.toFixed(1));
+        el.setAttribute("opacity", ((1 - t) * 0.9 * state.spray).toFixed(3));
+      });
+    } else {
+      sprayLayerEl.setAttribute("opacity", "0");
+    }
+
+    // Crop foliage downwash wind sway + moisture dew shimmer
+    cropPlants.forEach((plant) => {
+      const cx = Number(plant.getAttribute("data-cx")) || 400;
+      const dist = Math.abs(state.x - cx);
+      let swayDeg = 0;
+      if (state.rotorSpeed > 0.4 && dist < 95) {
+        const proximity = 1 - dist / 95;
+        const dir = cx >= state.x ? 1 : -1;
+        swayDeg = dir * proximity * 7.5 + Math.sin(nowSec * 14 + cx) * proximity * 3.5;
+      } else {
+        swayDeg = Math.sin(nowSec * 1.8 + cx * 0.05) * 1.1;
+      }
+      plant.setAttribute("transform", `translate(${cx}, 168) rotate(${swayDeg.toFixed(2)})`);
+    });
+
+    cropDews.forEach((dew) => {
+      dew.setAttribute("opacity", (state.hydrated * 0.9).toFixed(2));
+    });
+  }
+
+  function animateSegment(durationMs, updater) {
+    return new Promise((resolve) => {
+      const start = performance.now();
+      let prevX = state.x;
+      let prevTime = start;
+
+      const tick = (now) => {
+        const elapsed = now - start;
+        const rawT = Math.min(1, elapsed / durationMs);
+        const dt = Math.max(0.008, (now - prevTime) / 1000);
+
+        updater(rawT, now / 1000);
+
+        // Compute horizontal velocity & smooth pitch banking
+        const instVx = (state.x - prevX) / dt;
+        state.vx = state.vx * 0.72 + instVx * 0.28;
+        const targetPitch = Math.max(-11, Math.min(11, state.vx * 0.055));
+        state.pitch = state.pitch * 0.8 + targetPitch * 0.2;
+
+        prevX = state.x;
+        prevTime = now;
+        render(now / 1000);
+
+        if (rawT < 1) {
+          _droneAnimRaf = requestAnimationFrame(tick);
+        } else {
+          _droneAnimRaf = null;
+          resolve();
+        }
+      };
+      _stopDroneAnimation();
+      _droneAnimRaf = requestAnimationFrame(tick);
+    });
+  }
+
+  function resetToPad(isComplete) {
+    _stopDroneAnimation();
+    state.x = PAD_X;
+    state.y = PAD_Y;
+    state.vx = 0;
+    state.pitch = 0;
+    state.rotorSpeed = 0;
+    state.spray = 0;
+    state.valveOpen = false;
+    state.podLevel = isComplete ? 0.12 : 0;
+    state.supplyDrop = isComplete ? 1 : 0;
+    state.hydrated = isComplete ? 1 : 0;
+    render(performance.now() / 1000);
+  }
+
+  return { state, animateSegment, resetToPad, PAD_X, PAD_Y };
+}
+
+function _easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 function bindStage6() {
   const btn = document.getElementById("btn-final-drone-run");
   const statusEl = document.getElementById("final-drone-status");
   const dockCard = document.getElementById("dock-concept-card");
-  const streamEl = document.getElementById("svg-refill-stream");
-  const podLiquidEl = document.getElementById("svg-pod-liquid");
-  const sprayDropsEl = document.getElementById("svg-spray-drops");
+  const scene = _createDroneSceneController();
 
   btn.addEventListener("click", async () => {
     btn.disabled = true;
@@ -1639,28 +1862,38 @@ function bindStage6() {
     const isLive = appState.activeMode === "live";
 
     // Reveal SVG only after user confirms!
-    dockCard.classList.remove("hidden", "phase-fly", "phase-land");
-    podLiquidEl.setAttribute("y", "131");
-    podLiquidEl.setAttribute("height", "0");
-    sprayDropsEl.setAttribute("opacity", "0");
+    dockCard.classList.remove("hidden");
+    scene.resetToPad(false);
 
-    // Step 1: Filling Belly Spray Pod
+    // Phase 1: Solenoid Valve Opens & Fills Belly Pod (1.4s)
     statusEl.textContent = "1. เปิดก๊อกสถานีเติมน้ำปุ๋ย 8–10 ml ลงตลับใต้โดรน...";
-    streamEl.setAttribute("opacity", "0.95");
-    podLiquidEl.setAttribute("y", "119");
-    podLiquidEl.setAttribute("height", "12");
-    await new Promise((r) => setTimeout(r, 1300));
+    scene.state.valveOpen = true;
+    await scene.animateSegment(1400, (t) => {
+      const e = _easeInOutCubic(t);
+      scene.state.podLevel = e;
+      scene.state.supplyDrop = e;
+    });
+    scene.state.valveOpen = false;
 
-    // Step 2: Close valve & prepare takeoff
-    streamEl.setAttribute("opacity", "0");
-    statusEl.textContent = "2. ปิดวาล์วเรียบร้อย — โดรนกำลังบินไปยังแปลงเป้าหมาย...";
-    dockCard.classList.add("phase-fly");
-    await new Promise((r) => setTimeout(r, 1200));
+    // Phase 2: Rotor Spool-Up & Smooth Vertical Takeoff (1.2s)
+    statusEl.textContent = "2. ปิดวาล์วเรียบร้อย — เร่งรอบใบพัดและทะยานขึ้นจากจุดจอด...";
+    await scene.animateSegment(1200, (t) => {
+      scene.state.rotorSpeed = Math.min(1, t * 2.2);
+      const liftT = Math.max(0, (t - 0.25) / 0.75);
+      scene.state.y = scene.PAD_Y - _easeInOutCubic(liftT) * 76;
+    });
 
-    // Step 3: Spray droplets over crops
-    sprayDropsEl.setAttribute("opacity", "0.95");
-    statusEl.textContent = "3. โดรนกำลังบินพ่นปุ๋ยละอองฝอยเหนือแปลงเป้าหมาย...";
-    await apiRequest("/api/drone/mission", {
+    // Phase 3: Forward Cruise to Crop Field with Realistic Banking (1.3s)
+    statusEl.textContent = "3. โดรนกำลังบินเข้าสู่แนวแปลงเกษตรเป้าหมาย...";
+    await scene.animateSegment(1300, (t) => {
+      const e = _easeInOutCubic(t);
+      scene.state.x = scene.PAD_X + e * (312 - scene.PAD_X);
+      scene.state.y = 76 + Math.sin(t * Math.PI) * -6;
+    });
+
+    // Phase 4: Active Agricultural Spraying Sweep Over Crops (Right -> Left Pass)
+    statusEl.textContent = "4. โดรนกำลังบินพ่นปุ๋ยละอองฝอยเหนือแปลงเป้าหมาย...";
+    const missionPromise = apiRequest("/api/drone/mission", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1671,11 +1904,50 @@ function bindStage6() {
         job_id: s.mixer.jobId,
       }),
     });
-    await new Promise((r) => setTimeout(r, 1500));
 
-    // Step 4: Landing & Complete Summary Reveal
-    sprayDropsEl.setAttribute("opacity", "0");
-    dockCard.classList.add("phase-land");
+    // Pass 1: Left -> Right across crop canopy (312 -> 502)
+    await scene.animateSegment(1700, (t) => {
+      const e = _easeInOutCubic(t);
+      scene.state.x = 312 + e * (502 - 312);
+      scene.state.y = 78;
+      scene.state.spray = Math.min(1, t * 4);
+      scene.state.podLevel = 1 - e * 0.45;
+      scene.state.hydrated = e * 0.55;
+    });
+
+    // Pass 2: Right -> Left return spray pass (502 -> 318)
+    await scene.animateSegment(1600, (t) => {
+      const e = _easeInOutCubic(t);
+      scene.state.x = 502 - e * (502 - 318);
+      scene.state.y = 82;
+      scene.state.spray = t > 0.85 ? (1 - t) / 0.15 : 1;
+      scene.state.podLevel = 0.55 - e * 0.43;
+      scene.state.hydrated = 0.55 + e * 0.45;
+    });
+    scene.state.spray = 0;
+    await missionPromise;
+
+    // Phase 5: Return to Home (RTH) Cruise Back to Docking Pad (1.3s)
+    statusEl.textContent = "5. พ่นครบแปลงแล้ว — โดรนกำลังบินกลับจุดจอดอัตโนมัติ...";
+    await scene.animateSegment(1300, (t) => {
+      const e = _easeInOutCubic(t);
+      scene.state.x = 318 - e * (318 - scene.PAD_X);
+      scene.state.y = 82 - Math.sin(t * Math.PI) * 10;
+    });
+
+    // Phase 6: Smooth Vertical Touchdown & Rotor Spin-Down (1.1s)
+    await scene.animateSegment(1100, (t) => {
+      const descT = Math.min(1, t / 0.72);
+      scene.state.y = 82 + _easeInOutCubic(descT) * (scene.PAD_Y - 82);
+      scene.state.x = scene.PAD_X;
+      if (t > 0.72) {
+        const spinDown = (t - 0.72) / 0.28;
+        scene.state.rotorSpeed = Math.max(0, 1 - spinDown);
+      }
+    });
+    scene.resetToPad(true);
+
+    // Complete Summary Reveal
     s.finalDrone.done = true;
     statusEl.textContent = isLive
       ? "เสร็จสิ้นการเตรียมพร้อม (หากใช้โดรนบังคับมือ สามารถบินพ่นจริงได้ทันที)"
@@ -1691,6 +1963,7 @@ function bindStage6() {
   });
 
   document.getElementById("btn-restart-workflow").addEventListener("click", () => {
+    scene.resetToPad(false);
     appState.byMode[appState.activeMode] = createEmptyModeState();
     restoreModeUI();
   });

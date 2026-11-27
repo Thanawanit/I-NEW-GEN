@@ -119,16 +119,23 @@ body {
 }
 
 .brand-mark {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: #ffffff;
   border: 1px solid var(--accent-border);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .brand-title {
@@ -1569,21 +1576,32 @@ progress#probe-progress-bar::-moz-progress-bar {
 
 .dock-svg {
   width: 100%;
-  max-width: 460px;
+  max-width: 560px;
   height: auto;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
 }
 
 .svg-drone-group {
-  transition: transform 1.2s ease-in-out;
+  will-change: transform;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .dock-concept-card.phase-fly .svg-drone-group {
-    transform: translate(172px, -22px);
-  }
-  .dock-concept-card.phase-land .svg-drone-group {
-    transform: translate(172px, 6px);
-  }
+.refill-stream-flow {
+  animation: refill-dash 0.35s linear infinite;
+}
+
+@keyframes refill-dash {
+  from { stroke-dashoffset: 22; }
+  to { stroke-dashoffset: 0; }
+}
+
+.crop-plant {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+}
+
+.crop-dew {
+  transition: opacity 0.6s ease;
 }
 
 .dock-caption {
