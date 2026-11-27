@@ -1007,42 +1007,14 @@ progress#probe-progress-bar::-moz-progress-bar {
 }
 
 .probe-hero-svg {
-  width: 240px;
+  width: 270px;
   height: auto;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .probe-box-mover {
-    animation: probe-plunge 2.4s ease-in-out infinite;
-  }
-  .soil-ripple {
-    animation: soil-ripple-pulse 2.4s ease-out infinite;
-  }
-  .lora-waves .lw1 {
-    animation: lora-blink 2.4s ease-in-out infinite;
-  }
-  .lora-waves .lw2 {
-    animation: lora-blink 2.4s ease-in-out 0.2s infinite;
-  }
   .sensor-probe-card.is-new {
     animation: card-plunge-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-}
-
-@keyframes probe-plunge {
-  0%, 100% { transform: translateY(-10px); }
-  35%, 72% { transform: translateY(10px); }
-}
-
-@keyframes soil-ripple-pulse {
-  0%, 32% { opacity: 0; transform: scaleX(0.6); transform-origin: 130px 134px; }
-  45% { opacity: 0.75; transform: scaleX(1.05); transform-origin: 130px 134px; }
-  75%, 100% { opacity: 0; transform: scaleX(1.35); transform-origin: 130px 134px; }
-}
-
-@keyframes lora-blink {
-  0%, 40%, 100% { opacity: 0.15; }
-  55%, 75% { opacity: 0.95; }
 }
 
 @keyframes card-plunge-in {

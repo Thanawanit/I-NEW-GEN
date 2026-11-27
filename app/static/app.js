@@ -1031,6 +1031,146 @@ function bindStage3() {
 let _probeTimer = null;
 let _probeRunning = false;
 
+let _probeAnimRaf = null;
+let _probeAnimStart = 0;
+
+function _stopProbeSceneAnimation() {
+  if (_probeAnimRaf) {
+    cancelAnimationFrame(_probeAnimRaf);
+    _probeAnimRaf = null;
+  }
+}
+
+function _startProbeSceneAnimation() {
+  if (_probeAnimRaf) return;
+  const mover = document.getElementById("probe-box-mover");
+  const shadow = document.getElementById("probe-ground-shadow");
+  const scanRings = document.getElementById("probe-scan-rings");
+  const scanR1 = document.getElementById("probe-scan-r1");
+  const scanR2 = document.getElementById("probe-scan-r2");
+  const loraWaves = document.getElementById("probe-lora-waves");
+  const lw1 = document.getElementById("probe-lw1");
+  const lw2 = document.getElementById("probe-lw2");
+  const lw3 = document.getElementById("probe-lw3");
+  const txLed = document.getElementById("probe-tx-led");
+  const pwrLed = document.getElementById("probe-pwr-led");
+  const ripple = document.getElementById("probe-soil-ripple");
+  const dirtGroup = document.getElementById("probe-dirt-particles");
+  const dirtDots = Array.from(document.querySelectorAll("#probe-dirt-particles .dirt-dot"));
+  if (!mover) return;
+
+  const dirtSeeds = [
+    { x0: 132, vx: -16, vy: -18 },
+    { x0: 143, vx: -8, vy: -22 },
+    { x0: 150, vx: 2, vy: -24 },
+    { x0: 158, vx: 10, vy: -20 },
+    { x0: 167, vx: 17, vy: -17 },
+  ];
+
+  const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const CYCLE_S = 3.2;
+  _probeAnimStart = performance.now();
+
+  const tick = (now) => {
+    if (!_probeRunning) {
+      _probeAnimRaf = null;
+      return;
+    }
+    const sec = (now - _probeAnimStart) / 1000;
+    const u = (sec % CYCLE_S) / CYCLE_S; // 0..1
+
+    // 4-phase realistic soil probing motion:
+    // 0.00-0.20 plunge down | 0.20-0.62 planted & sensing | 0.62-0.82 LoRa TX | 0.82-1.00 lift up
+    let depth = 0; // 0 = hovering above soil, 1 = fully embedded in soil
+    if (u < 0.2) {
+      depth = easeInOut(u / 0.2);
+    } else if (u < 0.82) {
+      depth = 1;
+    } else {
+      depth = 1 - easeInOut((u - 0.82) / 0.18);
+    }
+
+    const yOffset = -12 + depth * 36; // -12px hover -> +24px deep in soil
+    mover.setAttribute("transform", `translate(0, ${yOffset.toFixed(2)})`);
+
+    // Dynamic ground shadow tightens & darkens as probe approaches soil
+    if (shadow) {
+      shadow.setAttribute("rx", (46 - depth * 10).toFixed(1));
+      shadow.setAttribute("opacity", (0.14 + depth * 0.24).toFixed(3));
+    }
+
+    // Power LED subtle breathing
+    if (pwrLed) {
+      pwrLed.setAttribute("opacity", (0.7 + 0.3 * Math.sin(sec * 5)).toFixed(2));
+    }
+
+    // Dirt particle burst right as needles pierce topsoil (u = 0.14..0.34)
+    if (dirtGroup && dirtDots.length) {
+      if (u >= 0.14 && u <= 0.36) {
+        const dt = (u - 0.14) / 0.22; // 0..1
+        dirtGroup.setAttribute("opacity", (Math.sin(dt * Math.PI) * 0.85).toFixed(3));
+        dirtDots.forEach((dot, i) => {
+          const seed = dirtSeeds[i % dirtSeeds.length];
+          const px = seed.x0 + seed.vx * dt;
+          const py = 138 + seed.vy * dt + 28 * dt * dt;
+          dot.setAttribute("cx", px.toFixed(1));
+          dot.setAttribute("cy", py.toFixed(1));
+        });
+      } else {
+        dirtGroup.setAttribute("opacity", "0");
+      }
+    }
+
+    // Surface ripple right at impact (u = 0.16..0.44)
+    if (ripple) {
+      if (u >= 0.16 && u <= 0.44) {
+        const rt = (u - 0.16) / 0.28;
+        ripple.setAttribute("rx", (24 + rt * 28).toFixed(1));
+        ripple.setAttribute("ry", (3 + rt * 3.5).toFixed(1));
+        ripple.setAttribute("opacity", ((1 - rt) * 0.72).toFixed(3));
+      } else {
+        ripple.setAttribute("opacity", "0");
+      }
+    }
+
+    // Subsurface electromagnetic sensing rings while planted (u = 0.24..0.66)
+    if (scanRings && scanR1 && scanR2) {
+      if (u >= 0.24 && u <= 0.66) {
+        const st = ((u - 0.24) / 0.21) % 1;
+        const st2 = (st + 0.5) % 1;
+        scanRings.setAttribute("opacity", "1");
+        scanR1.setAttribute("rx", (16 + st * 34).toFixed(1));
+        scanR1.setAttribute("ry", (5 + st * 11).toFixed(1));
+        scanR1.setAttribute("opacity", ((1 - st) * 0.8).toFixed(3));
+        scanR2.setAttribute("rx", (16 + st2 * 34).toFixed(1));
+        scanR2.setAttribute("ry", (5 + st2 * 11).toFixed(1));
+        scanR2.setAttribute("opacity", ((1 - st2) * 0.65).toFixed(3));
+      } else {
+        scanRings.setAttribute("opacity", "0");
+      }
+    }
+
+    // LoRa wireless TX pulse (u = 0.58..0.82)
+    if (loraWaves && txLed) {
+      if (u >= 0.58 && u <= 0.82) {
+        const lt = (u - 0.58) / 0.24; // 0..1
+        loraWaves.setAttribute("opacity", "1");
+        txLed.setAttribute("opacity", "1");
+        if (lw1) lw1.setAttribute("opacity", Math.max(0.1, Math.sin(lt * Math.PI)).toFixed(2));
+        if (lw2) lw2.setAttribute("opacity", Math.max(0.1, Math.sin(Math.max(0, lt - 0.16) * Math.PI)).toFixed(2));
+        if (lw3) lw3.setAttribute("opacity", Math.max(0.05, Math.sin(Math.max(0, lt - 0.32) * Math.PI)).toFixed(2));
+      } else {
+        loraWaves.setAttribute("opacity", "0");
+        txLed.setAttribute("opacity", "0.3");
+      }
+    }
+
+    _probeAnimRaf = requestAnimationFrame(tick);
+  };
+
+  _probeAnimRaf = requestAnimationFrame(tick);
+}
+
 let _lastRenderedProbeCount = 0;
 
 function renderProbeCards(pointsList) {
@@ -1049,6 +1189,8 @@ function renderProbeCards(pointsList) {
   }
   if (liveAnim) {
     liveAnim.classList.toggle("hidden", !_probeRunning);
+    if (_probeRunning) _startProbeSceneAnimation();
+    else _stopProbeSceneAnimation();
   }
 
   bar.value = validPts.length;
@@ -1239,65 +1381,166 @@ let _bottleCurrentMl = 0;
 let _bottleTargetMl = 0;
 let _bottleTotalMl = 1000;
 let _bottlePouring = false;
+let _bottleWaveEnergy = 0; // Smoothly ramps up while pouring & dampens to 0 when stopped
+let _bottleStreamColor = "#2f9e5b";
 let _wavePhase = 0;
 
-function _renderBottleGeometry(mlValue, totalMl, pouring, phase) {
+const _bottleBubbleSeeds = [
+  { x0: 114, amp: 5, speed: 0.42, phase: 0.05 },
+  { x0: 105, amp: 7, speed: 0.36, phase: 0.20 },
+  { x0: 123, amp: 6, speed: 0.48, phase: 0.35 },
+  { x0: 95, amp: 8, speed: 0.32, phase: 0.50 },
+  { x0: 133, amp: 7, speed: 0.40, phase: 0.65 },
+  { x0: 110, amp: 4, speed: 0.52, phase: 0.78 },
+  { x0: 120, amp: 6, speed: 0.38, phase: 0.88 },
+  { x0: 88, amp: 5, speed: 0.34, phase: 0.14 },
+];
+
+function _detectStreamColor(mlVal) {
+  const s = currentState();
+  const vols = s?.mixer?.volumes || {};
+  const vN = Number(vols.n || 0);
+  const vP = Number(vols.p || 0);
+  const vK = Number(vols.k || 0);
+  if (mlVal <= vN && vN > 0) return "#1e8e4e";       // N: Botanical Emerald
+  if (mlVal <= vN + vP && vP > 0) return "#d98218";  // P: Warm Amber
+  if (mlVal <= vN + vP + vK && vK > 0) return "#c93b32"; // K: Deep Crimson
+  return "#0ea5e9";                                   // Water: Clean Sky Blue
+}
+
+function _renderBottleGeometry(mlValue, totalMl, pouring, phase, energy) {
   const safeTotal = totalMl > 0 ? totalMl : 1000;
   const clamped = Math.max(0, Math.min(safeTotal, mlValue));
   const frac = clamped / safeTotal;
   const pct = frac * 100;
 
-  // Normal Bottle liquid fill: bottom y=266 up 180px to 1000 ml mark (y=86)
+  // Bottle liquid fill: bottom y=280 up 180px to 1000 ml mark (y=100)
   const liquidH = 180 * frac;
-  const liquidY = 266 - liquidH;
+  const liquidY = 280 - liquidH;
 
   const waveBack = document.getElementById("beaker-wave-back");
   const waveFront = document.getElementById("beaker-wave-front");
+  const meniscusLine = document.getElementById("beaker-meniscus-line");
+  const pourTop = document.getElementById("bottle-pour-top");
   const stream = document.getElementById("bottle-pour-stream");
-  const bubbles = document.getElementById("bottle-bubbles-group");
+  const streamSheen = document.getElementById("bottle-pour-sheen");
+  const splashGroup = document.getElementById("bottle-splash-group");
+  const splashL = document.getElementById("splash-arc-l");
+  const splashR = document.getElementById("splash-arc-r");
+  const splashDrops = Array.from(document.querySelectorAll("#bottle-splash-group .splash-drop"));
+  const bubblesGroup = document.getElementById("bottle-bubbles-group");
+  const physBubbles = Array.from(document.querySelectorAll("#bottle-bubbles-group .phys-bubble"));
 
-  const amp = frac > 0.01 && frac < 0.995 ? (pouring ? 4.8 : 1.6) : 0;
-  const f1 = Math.sin(phase) * amp;
-  const f2 = Math.cos(phase * 1.3 + 1.2) * (amp * 0.85);
+  // Multi-harmonic wave amplitude scales organically with waveEnergy (dampens smoothly to flat)
+  const amp = frac > 0.01 ? (0.4 + energy * 4.8) * (frac > 0.992 ? 0.25 : 1) : 0;
+  const f1 = (Math.sin(phase) + 0.4 * Math.sin(phase * 1.9 + 0.6)) * amp;
+  const f2 = (Math.cos(phase * 1.25 + 1.1) + 0.35 * Math.sin(phase * 2.3)) * (amp * 0.82);
 
   if (waveFront) {
     if (liquidH <= 0.5) {
-      waveFront.setAttribute("d", "M 50 266 H 178 V 268 H 50 Z");
+      waveFront.setAttribute("d", "M 50 280 H 178 V 282 H 50 Z");
+      if (meniscusLine) meniscusLine.setAttribute("opacity", "0");
     } else {
       const yL = (liquidY + f1).toFixed(1);
-      const yC1 = (liquidY - f1 * 1.4).toFixed(1);
-      const yC2 = (liquidY + f1 * 1.4).toFixed(1);
+      const yC1 = (liquidY - f1 * 1.35).toFixed(1);
+      const yC2 = (liquidY + f1 * 1.35).toFixed(1);
       const yR = (liquidY - f1).toFixed(1);
-      waveFront.setAttribute(
-        "d",
-        `M 50 ${yL} C 82 ${yC1}, 146 ${yC2}, 178 ${yR} V 268 H 50 Z`
-      );
+      const topCurve = `M 50 ${yL} C 82 ${yC1}, 146 ${yC2}, 178 ${yR}`;
+      waveFront.setAttribute("d", `${topCurve} V 282 H 50 Z`);
+      if (meniscusLine) {
+        meniscusLine.setAttribute("d", topCurve);
+        meniscusLine.setAttribute("opacity", (0.45 + energy * 0.35).toFixed(2));
+      }
     }
   }
 
   if (waveBack) {
     if (liquidH <= 0.5) {
-      waveBack.setAttribute("d", "M 50 266 H 178 V 268 H 50 Z");
+      waveBack.setAttribute("d", "M 50 280 H 178 V 282 H 50 Z");
     } else {
-      const yL = (liquidY + f2 - 1.5).toFixed(1);
-      const yC1 = (liquidY + f2 * 1.3).toFixed(1);
-      const yC2 = (liquidY - f2 * 1.3).toFixed(1);
-      const yR = (liquidY - f2 - 1.5).toFixed(1);
+      const yL = (liquidY + f2 - 1.6).toFixed(1);
+      const yC1 = (liquidY + f2 * 1.25).toFixed(1);
+      const yC2 = (liquidY - f2 * 1.25).toFixed(1);
+      const yR = (liquidY - f2 - 1.6).toFixed(1);
       waveBack.setAttribute(
         "d",
-        `M 50 ${yL} C 86 ${yC1}, 142 ${yC2}, 178 ${yR} V 268 H 50 Z`
+        `M 50 ${yL} C 86 ${yC1}, 142 ${yC2}, 178 ${yR} V 282 H 50 Z`
       );
     }
   }
 
+  const showStream = pouring && frac < 0.996;
+  const jetColor = _bottleStreamColor;
+  const wobbleW = Math.sin(phase * 3.1) * 0.45;
+  const streamEndY = Math.max(54, liquidY + 3);
+
+  if (pourTop) {
+    pourTop.setAttribute("fill", jetColor);
+    pourTop.setAttribute("opacity", showStream ? "0.88" : "0");
+  }
   if (stream) {
-    const showStream = pouring && frac < 0.995;
-    stream.setAttribute("y2", Math.max(40, liquidY + 4).toFixed(1));
-    stream.setAttribute("opacity", showStream ? "0.78" : "0");
+    stream.setAttribute(
+      "d",
+      `M ${(111.5 - wobbleW).toFixed(1)} 48 H ${(116.5 + wobbleW).toFixed(1)} L ${(115.6 + wobbleW * 0.5).toFixed(1)} ${streamEndY.toFixed(1)} H ${(112.4 - wobbleW * 0.5).toFixed(1)} Z`
+    );
+    stream.setAttribute("fill", jetColor);
+    stream.setAttribute("opacity", showStream ? "0.86" : "0");
+  }
+  if (streamSheen) {
+    streamSheen.setAttribute("y2", streamEndY.toFixed(1));
+    streamSheen.setAttribute("opacity", showStream ? "0.65" : "0");
   }
 
-  if (bubbles) {
-    bubbles.setAttribute("opacity", pouring && frac > 0.08 && frac < 0.995 ? "0.85" : "0");
+  // Impact Splash Crown & Droplets right at liquidY
+  if (splashGroup) {
+    if (showStream && liquidH > 4) {
+      splashGroup.setAttribute("opacity", "0.9");
+      const sp1 = Math.abs(Math.sin(phase * 2.2));
+      const sp2 = Math.abs(Math.cos(phase * 2.6 + 0.5));
+      if (splashL) {
+        splashL.setAttribute(
+          "d",
+          `M 114 ${liquidY.toFixed(1)} Q ${(104 - sp1 * 4).toFixed(1)} ${(liquidY - 9 - sp1 * 5).toFixed(1)} ${(98 - sp1 * 5).toFixed(1)} ${(liquidY - 2).toFixed(1)}`
+        );
+      }
+      if (splashR) {
+        splashR.setAttribute(
+          "d",
+          `M 114 ${liquidY.toFixed(1)} Q ${(124 + sp2 * 4).toFixed(1)} ${(liquidY - 9 - sp2 * 5).toFixed(1)} ${(130 + sp2 * 5).toFixed(1)} ${(liquidY - 2).toFixed(1)}`
+        );
+      }
+      splashDrops.forEach((d, idx) => {
+        const dt = ((phase * 0.28) + idx * 0.24) % 1;
+        const dir = idx % 2 === 0 ? -1 : 1;
+        const spread = (idx < 2 ? 14 : 7) * dir;
+        const dx = 114 + spread * dt;
+        const dy = liquidY - 14 * Math.sin(dt * Math.PI);
+        d.setAttribute("cx", dx.toFixed(1));
+        d.setAttribute("cy", dy.toFixed(1));
+        d.setAttribute("opacity", (Math.sin(dt * Math.PI) * 0.9).toFixed(2));
+      });
+    } else {
+      splashGroup.setAttribute("opacity", "0");
+    }
+  }
+
+  // Physics-Driven Rising Bubbles Clamped Strictly Inside Liquid [liquidY+4 .. 276]
+  if (bubblesGroup) {
+    const showBubbles = energy > 0.08 && liquidH > 18;
+    bubblesGroup.setAttribute("opacity", showBubbles ? (energy * 0.85).toFixed(2) : "0");
+    if (showBubbles) {
+      const travelH = Math.max(12, liquidH - 10);
+      physBubbles.forEach((b, idx) => {
+        const seed = _bottleBubbleSeeds[idx % _bottleBubbleSeeds.length];
+        const bt = ((phase * 0.085 * seed.speed) + seed.phase) % 1;
+        const bx = seed.x0 + Math.sin(phase * 1.4 + idx * 1.7) * seed.amp;
+        const by = 276 - bt * travelH;
+        const popAlpha = bt > 0.88 ? (1 - bt) / 0.12 : bt < 0.1 ? bt / 0.1 : 1;
+        b.setAttribute("cx", bx.toFixed(1));
+        b.setAttribute("cy", by.toFixed(1));
+        b.setAttribute("opacity", (popAlpha * 0.78).toFixed(2));
+      });
+    }
   }
 
   document.getElementById("bottle-ml-text").textContent = `${clamped.toFixed(0)} / ${safeTotal.toFixed(0)} ml`;
@@ -1311,11 +1554,18 @@ function _stepBottleAnimation() {
   } else {
     _bottleCurrentMl = _bottleTargetMl;
   }
-  _wavePhase += _bottlePouring ? 0.13 : 0.04;
 
-  _renderBottleGeometry(_bottleCurrentMl, _bottleTotalMl, _bottlePouring, _wavePhase);
+  // Smoothly ramp wave energy up while pouring, and dampen smoothly to rest when done
+  const targetEnergy = _bottlePouring ? 1.0 : 0.0;
+  _bottleWaveEnergy += (targetEnergy - _bottleWaveEnergy) * (_bottlePouring ? 0.12 : 0.045);
+  if (Math.abs(_bottleWaveEnergy) < 0.005) _bottleWaveEnergy = 0;
 
-  const stillMoving = Math.abs(_bottleTargetMl - _bottleCurrentMl) > 0.25;
+  _bottleStreamColor = _detectStreamColor(_bottleCurrentMl);
+  _wavePhase += 0.07 + _bottleWaveEnergy * 0.10;
+
+  _renderBottleGeometry(_bottleCurrentMl, _bottleTotalMl, _bottlePouring, _wavePhase, _bottleWaveEnergy);
+
+  const stillMoving = Math.abs(_bottleTargetMl - _bottleCurrentMl) > 0.25 || _bottleWaveEnergy > 0.01;
   if (_bottlePouring || stillMoving) {
     _bottleAnimRaf = requestAnimationFrame(_stepBottleAnimation);
   } else {
@@ -1329,6 +1579,7 @@ function updateBottleVisual(dispensedMl, totalMl = 1000, pouring = null) {
 
   if (_bottleTargetMl === 0) {
     _bottleCurrentMl = 0;
+    _bottleWaveEnergy = 0;
   }
   if (pouring !== null) {
     _bottlePouring = Boolean(pouring);
